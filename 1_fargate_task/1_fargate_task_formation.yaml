@@ -1,0 +1,26 @@
+Parameters:
+  BranchName:
+    Type: String
+    Description: Git branch to use for deployments
+    Default: main
+
+Resources:
+  AWSECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub 'warc-file-extractor-${BranchName}'
+      ImageScanningConfiguration:
+        scanOnPush: true
+      Tags:
+        - Key: Name
+          Value: !Sub 'warc-file-extractor-${BranchName}'
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+Outputs:
+  ECRRepositoryArn:
+    Description: ARN of the ECR repository
+    Value: !GetAtt AWSECRRepository.Arn
+    Export:
+      Name: !Sub 'warc-file-extractor-ecr-arn-${BranchName}'
+
