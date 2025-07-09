@@ -132,6 +132,11 @@ Resources:
             Value: !Ref AWSAccountId
           - Name: BRANCH_NAME
             Value: !Ref BranchName
+          - Name: ECR_REPOSITORY_NAME
+            Value: !Sub 'warc-file-extractor-${BranchName}'
+          - Name: REGION
+            Value: !Ref AWS::Region
+            
       Source:
         Type: CODEPIPELINE
         BuildSpec: 1_fargate_task/1_ecr_building_image.buildspec.yaml

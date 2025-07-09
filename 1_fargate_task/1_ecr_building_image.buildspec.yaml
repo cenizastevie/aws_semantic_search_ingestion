@@ -1,35 +1,25 @@
 version: 0.2
 phases:
+  install:
+    runtime-versions:
+      docker: 18
   pre_build:
     commands:
-      - echo "Logging in to Amazon ECR..."
-      - aws --version # Verify AWS CLI v2 is in use
-      # This ECR login command is now explicitly quoted to ensure it's parsed as a single string.
-      - "aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com"
-      - REPOSITORY_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/warc-file-extractor-$BRANCH_NAME"
-      # Updated IMAGE_TAG to include the branch name for better identification.
-      - IMAGE_TAG="${BRANCH_NAME}-$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)"
-      - echo "Building for branch: $BRANCH_NAME"
-      - echo "Repository URI: $REPOSITORY_URI" # Added for debugging
-      - echo "Image Tag: $IMAGE_TAG" # Added for debugging
-
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - $(aws ecr get-login --region __REGION__ --no-include-email)
+      - REPOSITORY_URI=__AWS_ACCOUNT_ID__.dkr.ecr.__REGION__.amazonaws.com/__ECR_REPOSITORY_NAME__
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
   build:
     commands:
-      - echo "Building the Docker image..."
-      # Explicitly quote the docker build command as it contains variables.
-      - "docker build -t $REPOSITORY_URI:$IMAGE_TAG ."
-
+      - echo Build started on `date`
+      - echo Building the Docker image...          
+      - docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
   post_build:
     commands:
-      - echo "Pushing the Docker image..."
-      # Explicitly quote the docker push command as it contains variables.
-      - "docker push $REPOSITORY_URI:$IMAGE_TAG"
-      - echo "Image pushed to $REPOSITORY_URI:$IMAGE_TAG"
-
-artifacts:
-  files: '**/*'
-
-env:
-  variables:
-    AWS_ACCOUNT_ID: "${AWS_ACCOUNT_ID}"
-    BRANCH_NAME: "${BRANCH_NAME}"
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG

@@ -23,4 +23,3 @@ Outputs:
     Value: !GetAtt AWSECRRepository.Arn
     Export:
       Name: !Sub 'warc-file-extractor-ecr-arn-${BranchName}'
-
