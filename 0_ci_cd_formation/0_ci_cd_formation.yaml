@@ -134,7 +134,7 @@ Resources:
             Value: !Ref BranchName
       Source:
         Type: CODEPIPELINE
-        BuildSpec: 1_fargate_task/buildspec.yml
+        BuildSpec: 1_fargate_task/1_ecr_building_image.buildspec.yaml
       TimeoutInMinutes: 30
       Tags:
         - Key: project

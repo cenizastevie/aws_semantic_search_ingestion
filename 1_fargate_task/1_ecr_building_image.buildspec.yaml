@@ -1,0 +1,40 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws --version # Verify AWS CLI v2 is in use
+      # Use explicit command substitution. This is the standard and most reliable way.
+      - | # Using a literal block scalar for multiline command, ensuring it's treated as one block
+        aws ecr get-login-password --region $AWS_DEFAULT_REGION | \
+        docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/warc-file-extractor-$BRANCH_NAME"
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - echo "Building for branch: $BRANCH_NAME"
+      - echo "Repository URI: $REPOSITORY_URI" # Added for debugging
+      - echo "Image Tag: $IMAGE_TAG" # Added for debugging
+
+  build:
+    commands:
+      - echo "Building the Docker image..."
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
+
+  post_build:
+    commands:
+      - echo "Pushing the Docker image..."
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo "Image pushed to $REPOSITORY_URI:$IMAGE_TAG"
+
+artifacts:
+  files: '**/*'
+
+# This 'env' block is usually for variables *defined by the buildspec*
+# If AWS_ACCOUNT_ID and BRANCH_NAME are already CodeBuild environment variables,
+# you might not need this section. If they are *parameters* to the build, keep it.
+env:
+  variables:
+    # Assuming these are passed into the CodeBuild project as environment variables
+    # If not, you'd define fixed values here or use parameter store/secrets manager.
+    AWS_ACCOUNT_ID: "${AWS_ACCOUNT_ID}"
+    BRANCH_NAME: "${BRANCH_NAME}"
