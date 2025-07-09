@@ -2,9 +2,9 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: CI/CD Pipeline for Semantic Search Ingestion
 
 Parameters:
-  ConnectionArn:
+  ConnectionID:
     Type: String
-    Description: ARN of the CodeStar Connection to GitHub
+    Description: Connection ID of the CodeStar Connection to GitHub
   GitHubUser:
     Type: String
     Description: GitHub username or organization
@@ -43,9 +43,41 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              - Sid: AllowS3BucketAccess
+                Effect: Allow
+                Action:
+                  - s3:GetBucketVersioning
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub 'arn:aws:s3:::assi-artifacts-${BranchName}'
+              - Sid: AllowS3ObjectAccess
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - !Sub 'arn:aws:s3:::assi-artifacts-${BranchName}/*'
+
               - Effect: Allow
                 Action:
-                  - s3:*
+                  - codeconnections:UseConnection
+                  - codestar-connections:UseConnection
+                Resource:
+                  - !Sub 'arn:aws:codestar-connections:${AWS::Region}:${AWSAccountId}:connection/${ConnectionID}'
+                  - !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWSAccountId}:connection/${ConnectionID}'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub 'arn:aws:logs:us-east-1:${AWSAccountId}:log-group:/aws/codepipeline/assi-code-pipeline-${BranchName}'
+                  - !Sub 'arn:aws:logs:us-east-1:${AWSAccountId}:log-group:/aws/codepipeline/assi-code-pipeline-${BranchName}:log-stream/*'
+              - Effect: Allow
+                Action:
                   - codebuild:*
                   - iam:PassRole
                 Resource: '*'
@@ -126,7 +158,7 @@ Resources:
               OutputArtifacts:
                 - Name: SourceOutput
               Configuration:
-                ConnectionArn: !Ref ConnectionArn
+                ConnectionArn: !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWSAccountId}:connection/${ConnectionID}'
                 FullRepositoryId: !Sub "${GitHubUser}/${GitHubRepo}"
                 BranchName: !Ref BranchName
                 DetectChanges: true

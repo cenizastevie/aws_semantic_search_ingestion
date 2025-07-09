@@ -18,7 +18,7 @@ aws cloudformation deploy ^
   --region %REGION% ^
   --capabilities CAPABILITY_NAMED_IAM ^
   --parameter-overrides ^
-    ConnectionArn=%CONNECTION_ARN% ^
+    ConnectionID=%CONNECTION_ID% ^
     GitHubUser=%GITHUB_USER% ^
     GitHubRepo=%GITHUB_REPO% ^
     BranchName=%BRANCH_NAME% ^
