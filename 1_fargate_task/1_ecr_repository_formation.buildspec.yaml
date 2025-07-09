@@ -6,16 +6,12 @@ phases:
     commands:
       - echo "Verifying AWS CLI version..."
       - aws --version # Add this to confirm you're using v2
-      - echo "Current Branch Name: ${BRANCH_NAME}" # Added this line
+      - echo "Current Branch Name: ${BRANCH_NAME}"
   build:
     commands:
       - echo "Deploying ECR CloudFormation stack..."
-      - |
-        aws cloudformation deploy \
-          --template-file 1_fargate_task/1_ecr_repository_formation.yaml \
-          --stack-name warc-file-extractor-ecr-${BRANCH_NAME} \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --parameter-overrides BranchName=${BRANCH_NAME}
+      # This command is now a single, very long line for the YAML parser.
+      - aws cloudformation deploy --template-file 1_fargate_task/1_ecr_repository_formation.yaml --stack-name warc-file-extractor-ecr-${BRANCH_NAME} --capabilities CAPABILITY_NAMED_IAM --parameter-overrides BranchName=${BRANCH_NAME}
 artifacts:
   files:
     - '**/*'
