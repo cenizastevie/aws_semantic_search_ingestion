@@ -6,7 +6,9 @@ phases:
     commands:
       - echo "Verifying AWS CLI version..."
       - aws --version # Add this to confirm you're using v2
-      - echo "Current Branch Name: ${BRANCH_NAME}"
+      # Explicitly quote the entire command to ensure YAML treats it as a single string.
+      # This is the most robust way to handle this type of YAML parsing error.
+      - "echo \"Current Branch Name: ${BRANCH_NAME}\""
   build:
     commands:
       - echo "Deploying ECR CloudFormation stack..."
