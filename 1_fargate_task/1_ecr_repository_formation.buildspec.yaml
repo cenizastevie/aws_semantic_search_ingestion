@@ -1,0 +1,18 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.x
+    commands:
+      - pip install --upgrade awscli
+  build:
+    commands:
+      - echo "Deploying ECR CloudFormation stack..."
+      - aws cloudformation deploy \
+          --template-file 1_fargate_task/1_ecr_repository_formation.yaml \
+          --stack-name warc-file-extractor-ecr-${BRANCH_NAME} \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --parameter-overrides BranchName=${BRANCH_NAME}
+artifacts:
+  files:
+    - '**/*'

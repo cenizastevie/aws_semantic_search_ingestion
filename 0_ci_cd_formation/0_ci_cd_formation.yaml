@@ -27,6 +27,8 @@ Resources:
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
 
   CodePipelineRole:
     Type: AWS::IAM::Role
@@ -138,6 +140,29 @@ Resources:
         - Key: project
           Value: aws-semantic-search-ingestion
 
+  CloudFormationDeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: CloudFormationDeployProject
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: BRANCH_NAME
+            Value: !Ref BranchName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 1_fargate_task/1_ecr_repository_formation.buildspec.yaml
+      TimeoutInMinutes: 15
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -162,6 +187,20 @@ Resources:
                 FullRepositoryId: !Sub "${GitHubUser}/${GitHubRepo}"
                 BranchName: !Ref BranchName
                 DetectChanges: true
+        - Name: DeployECRRepository
+          Actions:
+            - Name: DeployECRRepository
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: DeployECRRepositoryOutput
+              Configuration:
+                ProjectName: !Ref CloudFormationDeployProject
         - Name: BuildDocker
           Actions:
             - Name: BuildDocker
@@ -172,6 +211,7 @@ Resources:
                 Version: '1'
               InputArtifacts:
                 - Name: SourceOutput
+                - Name: DeployECRRepositoryOutput
               OutputArtifacts:
                 - Name: DockerBuildOutput
               Configuration:
