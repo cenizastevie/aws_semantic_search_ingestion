@@ -201,6 +201,7 @@ Resources:
                 - Name: DeployECRRepositoryOutput
               Configuration:
                 ProjectName: !Ref CloudFormationDeployProject
+                PrimarySource: SourceOutput
         - Name: BuildDocker
           Actions:
             - Name: BuildDocker
@@ -216,6 +217,7 @@ Resources:
                 - Name: DockerBuildOutput
               Configuration:
                 ProjectName: !Ref DockerBuildProject
+                PrimarySource: SourceOutput
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
