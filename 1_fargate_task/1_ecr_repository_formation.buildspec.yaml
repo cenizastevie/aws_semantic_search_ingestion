@@ -4,7 +4,9 @@ phases:
     runtime-versions:
       python: 3.x
     commands:
-      - pip install --upgrade awscli
+      - echo "Verifying AWS CLI version..."
+      - aws --version # Add this to confirm you're using v2
+      - echo "Current Branch Name: ${BRANCH_NAME}" # Added this line
   build:
     commands:
       - echo "Deploying ECR CloudFormation stack..."
