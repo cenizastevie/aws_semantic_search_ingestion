@@ -1,12 +1,11 @@
 version: 0.2
-
 phases:
   pre_build:
     commands:
       - echo "Logging in to Amazon ECR..."
       - aws --version # Verify AWS CLI v2 is in use
-      # This ECR login command is now truly on a single line in the YAML.
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      # This ECR login command is now explicitly quoted to ensure it's parsed as a single string.
+      - "aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com"
       - REPOSITORY_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/warc-file-extractor-$BRANCH_NAME"
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - echo "Building for branch: $BRANCH_NAME"
@@ -16,12 +15,14 @@ phases:
   build:
     commands:
       - echo "Building the Docker image..."
-      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
+      # Explicitly quote the docker build command as it contains variables.
+      - "docker build -t $REPOSITORY_URI:$IMAGE_TAG ."
 
   post_build:
     commands:
       - echo "Pushing the Docker image..."
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      # Explicitly quote the docker push command as it contains variables.
+      - "docker push $REPOSITORY_URI:$IMAGE_TAG"
       - echo "Image pushed to $REPOSITORY_URI:$IMAGE_TAG"
 
 artifacts:
