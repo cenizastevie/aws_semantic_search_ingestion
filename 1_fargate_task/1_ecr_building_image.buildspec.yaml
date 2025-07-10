@@ -20,7 +20,7 @@ phases:
       - echo "Building the Docker image..."
       - echo "Current working directory: $(pwd)"
       - echo "Files in current directory:"
-      - ls -la
+      - "ls -la"
       - docker build -t "$REPOSITORY_URI":latest -f 1_fargate_task/Dockerfile .
       - docker tag "$REPOSITORY_URI":latest "$REPOSITORY_URI":"$IMAGE_TAG"
 
