@@ -219,7 +219,6 @@ Resources:
                 Version: '1'
               InputArtifacts:
                 - Name: SourceOutput
-                - Name: DeployECRRepositoryOutput
               OutputArtifacts:
                 - Name: DockerBuildOutput
               Configuration:

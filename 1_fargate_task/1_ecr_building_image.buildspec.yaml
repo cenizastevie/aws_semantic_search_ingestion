@@ -17,7 +17,7 @@ phases:
     commands:
       - echo "Build started on $(date)"
       - echo "Building the Docker image..."
-      - docker build -t $REPOSITORY_URI .
+      - docker build -t $REPOSITORY_URI 1_fargate_task
       - docker tag $REPOSITORY_URI $REPOSITORY_URI:$IMAGE_TAG
 
   post_build:
