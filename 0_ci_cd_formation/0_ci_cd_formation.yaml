@@ -135,7 +135,7 @@ Resources:
           - Name: ECR_REPOSITORY_NAME
             Value: !Sub 'warc-file-extractor-${BranchName}'
           - Name: REPOSITORY_URI
-            Value: !Sub "${AWSAccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/warc-file-extractor-${BranchName}:latest"
+            Value: !Sub "${AWSAccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/warc-file-extractor-${BranchName}"
           - Name: REGION
             Value: !Ref AWS::Region
           
