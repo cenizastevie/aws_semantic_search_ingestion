@@ -23,3 +23,8 @@ Outputs:
     Value: !GetAtt AWSECRRepository.Arn
     Export:
       Name: !Sub 'warc-file-extractor-ecr-arn-${BranchName}'
+  ECRRepositoryUri:
+    Description: URI of the ECR repository
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/warc-file-extractor-${BranchName}"
+    Export:
+      Name: !Sub 'warc-file-extractor-ecr-uri-${BranchName}'
