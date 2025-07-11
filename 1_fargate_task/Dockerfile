@@ -15,4 +15,4 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
 
 # Set the entrypoint for AWS Batch (adjust as needed)
-CMD ["main.handler"]
+CMD ["python", "main.py"]

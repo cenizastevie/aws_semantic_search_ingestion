@@ -1,0 +1,26 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.x
+    commands:
+      - echo "Verifying AWS CLI version..."
+      - aws --version
+      - "echo \"Current Branch Name: ${BRANCH_NAME}\""
+      - "echo \"VPC ID: ${VPC_ID}\""
+      - "echo \"Subnet IDs: ${SUBNET_IDS}\""
+  build:
+    commands:
+      - echo "Deploying ECS Task and Lambda CloudFormation stack..."
+      - >
+        aws cloudformation deploy
+        --template-file 1_fargate_task/1_ecs_task_and_lambda.yaml
+        --stack-name semantic-search-ecs-lambda-${BRANCH_NAME}
+        --capabilities CAPABILITY_NAMED_IAM
+        --parameter-overrides
+        BranchName=${BRANCH_NAME}
+        VpcId=${VPC_ID}
+        SubnetIds=\"${SUBNET_IDS}\"
+artifacts:
+  files:
+    - '**/*'
