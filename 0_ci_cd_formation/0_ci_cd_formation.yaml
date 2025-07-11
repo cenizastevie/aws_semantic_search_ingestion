@@ -18,6 +18,12 @@ Parameters:
   AWSAccountId:
     Type: String
     Description: AWS Account ID for ECR and CodeBuild
+  VpcId:
+    Type: String
+    Description: VPC ID for ECS and Lambda deployment
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: Subnet IDs for ECS and Lambda deployment
 
 Resources:
   PipelineArtifactBucket:
@@ -170,6 +176,33 @@ Resources:
         - Key: project
           Value: aws-semantic-search-ingestion
 
+  ECSLambdaDeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: ECSLambdaDeployProject
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: BRANCH_NAME
+            Value: !Ref BranchName
+          - Name: VPC_ID
+            Value: !Ref VpcId
+          - Name: SUBNET_IDS
+            Value: !Join [",", !Ref SubnetIds]
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 1_fargate_task/1_ecs_task_and_lambda.buildspec.yaml
+      TimeoutInMinutes: 20
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -223,6 +256,21 @@ Resources:
                 - Name: DockerBuildOutput
               Configuration:
                 ProjectName: !Ref DockerBuildProject
+                PrimarySource: SourceOutput
+        - Name: DeployECSLambda
+          Actions:
+            - Name: DeployECSLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: DeployECSLambdaOutput
+              Configuration:
+                ProjectName: !Ref ECSLambdaDeployProject
                 PrimarySource: SourceOutput
       Tags:
         - Key: project

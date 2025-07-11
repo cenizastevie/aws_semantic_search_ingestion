@@ -22,4 +22,6 @@ aws cloudformation deploy ^
     GitHubUser=%GITHUB_USER% ^
     GitHubRepo=%GITHUB_REPO% ^
     BranchName=%BRANCH_NAME% ^
-    AWSAccountId=%AWS_ACCOUNT_ID%
+    AWSAccountId=%AWS_ACCOUNT_ID% ^
+    VpcId=%VPC_ID% ^
+    SubnetIds="%SUBNET_IDS%"
