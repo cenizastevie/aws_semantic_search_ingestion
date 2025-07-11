@@ -120,6 +120,7 @@ Resources:
                   - ec2:*
                   - sqs:*
                   - lambda:*
+                  - iam:*
                 Resource: '*'
       Tags:
         - Key: project
