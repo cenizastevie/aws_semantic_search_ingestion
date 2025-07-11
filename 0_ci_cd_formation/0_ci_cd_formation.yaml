@@ -116,6 +116,7 @@ Resources:
                   - lambda:*
                   - cloudformation:*
                   - iam:PassRole
+                  - ecs:*
                 Resource: '*'
       Tags:
         - Key: project
