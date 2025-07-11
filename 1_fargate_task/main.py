@@ -9,6 +9,11 @@ import os
 import boto3
 from s3 import upload_bytes, get_input_file_stream, get_warc_file_stream
 from langdetect import detect
+import logging
+
+# Configure logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def sanitize_filename(url):
     parsed = urlparse(url)
@@ -99,32 +104,9 @@ def process_warc_stream(stream, warc_file):
                 scrape_date
             )
         except Exception as e:
-            print(f"Error uploading to S3 (key={s3_key}): {e}")
+            logger.error(f"Error uploading to S3 (key={s3_key}): {e}")
 
 if __name__ == '__main__':
-    # # batch_file_manifest = os.environ.get('BATCH_FILE_MANIFEST', 'batch_file_manifest_test.csv')
-    # # batch_csv_stream = get_input_file_stream(batch_file_manifest)
-    # batch_csv_reader = csv.DictReader(batch_csv_stream.read().decode('utf-8').splitlines())
-    # warc_files = [row['wet_file_s3_path'].strip() for row in batch_csv_reader]
-
-    allowed_domains = set()
-    with open('domains.csv', newline='', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            allowed_domains.add(row['domain'].strip())
-    warc_files = []
-    with open('warc_files.csv', newline='', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            warc_files.append(row['wet_file_s3_path'].strip())
-
-    for warc_file in warc_files:
-        print(f'Processing WARC file: {warc_file}')
-        with get_warc_file_stream(warc_file) as warc_stream:
-            process_warc_stream(warc_stream, warc_file)
-        print(f'Finished processing WARC file: {warc_file}')
-
-def handler(event, context):
     batch_file_manifest = os.environ.get('BATCH_FILE_MANIFEST', 'batch_file_manifest_test.csv')
     batch_csv_stream = get_input_file_stream(batch_file_manifest)
     batch_csv_reader = csv.DictReader(batch_csv_stream.read().decode('utf-8').splitlines())
@@ -137,8 +119,27 @@ def handler(event, context):
             allowed_domains.add(row['domain'].strip())
 
     for warc_file in warc_files:
-        print(f'Processing WARC file: {warc_file}')
+        logger.info(f'Processing WARC file: {warc_file}')
         with get_warc_file_stream(warc_file) as warc_stream:
             process_warc_stream(warc_stream)
-        print(f'Finished processing WARC file: {warc_file}')
-    return {"status": "completed"}
+        logger.info(f'Finished processing WARC file: {warc_file}')
+    logger.info("status completed")
+
+# def handler(event, context):
+#     batch_file_manifest = os.environ.get('BATCH_FILE_MANIFEST', 'batch_file_manifest_test.csv')
+#     batch_csv_stream = get_input_file_stream(batch_file_manifest)
+#     batch_csv_reader = csv.DictReader(batch_csv_stream.read().decode('utf-8').splitlines())
+#     warc_files = [row['wet_file_s3_path'].strip() for row in batch_csv_reader]
+
+#     allowed_domains = set()
+#     with open('domains.csv', newline='', encoding='utf-8') as csvfile:
+#         reader = csv.DictReader(csvfile)
+#         for row in reader:
+#             allowed_domains.add(row['domain'].strip())
+
+#     for warc_file in warc_files:
+#         print(f'Processing WARC file: {warc_file}')
+#         with get_warc_file_stream(warc_file) as warc_stream:
+#             process_warc_stream(warc_stream)
+#         print(f'Finished processing WARC file: {warc_file}')
+#     return {"status": "completed"}

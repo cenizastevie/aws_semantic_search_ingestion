@@ -105,6 +105,17 @@ Resources:
               awslogs-group: /ecs/semantic-search-ingestion
               awslogs-region: !Ref "AWS::Region"
               awslogs-stream-prefix: ecs
+          Environment:
+            - Name: OUTPUT_BUCKET
+              Value: !Ref SemanticSearchOutputBucket
+            - Name: INPUT_BUCKET
+              Value: !Ref SemanticSearchInputBucket
+            - Name: IS_LOCAL
+              Value: "false"
+            - Name: SQS_QUEUE_URL
+              Value: !Ref SemanticSearchQueue
+            - Name: BATCH_FILE_MANIFEST
+              Value: ""  # To be overridden by Lambda at runtime
 
   ECSCluster:
     Type: AWS::ECS::Cluster
@@ -129,12 +140,21 @@ Resources:
           SUBNETS: !Join [",", !Ref SubnetIds]
           VPC: !Ref VpcId
           BRANCH_NAME: !Ref BranchName
+          INPUT_BUCKET: !Ref SemanticSearchInputBucket
       Code:
         ZipFile: |
           import os
           import boto3
+          import json
 
           def handler(event, context):
+              # Get manifest S3 key from event and concatenate with input bucket
+              manifest_key = event.get('BATCH_FILE_MANIFEST', '')
+              if not manifest_key:
+                  raise ValueError('BATCH_FILE_MANIFEST must be provided in the event')
+              input_bucket = os.environ['INPUT_BUCKET']
+              manifest_s3_path = f"s3://{input_bucket}/{manifest_key}"
+
               ecs = boto3.client('ecs')
               response = ecs.run_task(
                   cluster=os.environ['CLUSTER'],
@@ -145,9 +165,24 @@ Resources:
                           'subnets': os.environ['SUBNETS'].split(','),
                           'assignPublicIp': 'ENABLED'
                       }
+                  },
+                  overrides={
+                      'containerOverrides': [
+                          {
+                              'name': 'semantic-search-ingestion',
+                              'environment': [
+                                  {'name': 'BATCH_FILE_MANIFEST', 'value': manifest_s3_path}
+                              ]
+                          }
+                      ]
                   }
               )
-              return response
+              # Ensure JSON serializable response
+              def default_serializer(obj):
+                  if hasattr(obj, 'isoformat'):
+                      return obj.isoformat()
+                  return str(obj)
+              return json.loads(json.dumps(response, default=default_serializer))
 
   SemanticSearchQueue:
     Type: AWS::SQS::Queue
