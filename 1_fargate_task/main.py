@@ -124,21 +124,21 @@ if __name__ == '__main__':
             process_warc_stream(warc_stream, warc_file)
         print(f'Finished processing WARC file: {warc_file}')
 
-# def handler(event, context):
-#     batch_file_manifest = os.environ.get('BATCH_FILE_MANIFEST', 'batch_file_manifest_test.csv')
-#     batch_csv_stream = get_input_file_stream(batch_file_manifest)
-#     batch_csv_reader = csv.DictReader(batch_csv_stream.read().decode('utf-8').splitlines())
-#     warc_files = [row['wet_file_s3_path'].strip() for row in batch_csv_reader]
+def handler(event, context):
+    batch_file_manifest = os.environ.get('BATCH_FILE_MANIFEST', 'batch_file_manifest_test.csv')
+    batch_csv_stream = get_input_file_stream(batch_file_manifest)
+    batch_csv_reader = csv.DictReader(batch_csv_stream.read().decode('utf-8').splitlines())
+    warc_files = [row['wet_file_s3_path'].strip() for row in batch_csv_reader]
 
-#     allowed_domains = set()
-#     with open('domains.csv', newline='', encoding='utf-8') as csvfile:
-#         reader = csv.DictReader(csvfile)
-#         for row in reader:
-#             allowed_domains.add(row['domain'].strip())
+    allowed_domains = set()
+    with open('domains.csv', newline='', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            allowed_domains.add(row['domain'].strip())
 
-#     for warc_file in warc_files:
-#         print(f'Processing WARC file: {warc_file}')
-#         with get_warc_file_stream(warc_file) as warc_stream:
-#             process_warc_stream(warc_stream)
-#         print(f'Finished processing WARC file: {warc_file}')
-#     return {"status": "completed"}
+    for warc_file in warc_files:
+        print(f'Processing WARC file: {warc_file}')
+        with get_warc_file_stream(warc_file) as warc_stream:
+            process_warc_stream(warc_stream)
+        print(f'Finished processing WARC file: {warc_file}')
+    return {"status": "completed"}
