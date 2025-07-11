@@ -118,6 +118,8 @@ Resources:
                   - iam:PassRole
                   - ecs:*
                   - ec2:*
+                  - sqs:*
+                  - lambda:*
                 Resource: '*'
       Tags:
         - Key: project
