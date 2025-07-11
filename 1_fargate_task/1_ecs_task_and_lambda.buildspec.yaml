@@ -20,7 +20,7 @@ phases:
         --parameter-overrides
         BranchName=${BRANCH_NAME}
         VpcId=${VPC_ID}
-        SubnetIds=\"${SUBNET_IDS}\"
+        SubnetIds=${SUBNET_IDS}
 artifacts:
   files:
     - '**/*'
