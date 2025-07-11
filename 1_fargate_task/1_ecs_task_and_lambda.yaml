@@ -1,0 +1,211 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Task Definition and Lambda trigger for semantic search ingestion
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC to run the ECS task in
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets for ECS task networking
+  BranchName:
+    Type: String
+    Description: Git branch to use for deployments
+    Default: main
+
+Resources:
+  SemanticSearchTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: SemanticSearchTaskS3SQSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: "s3:*"
+                Resource:
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-input-${BranchName}"
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-input-${BranchName}/*"
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}"
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}/*"
+              - Effect: Allow
+                Action: "sqs:*"
+                Resource:
+                  - !GetAtt SemanticSearchQueue.Arn
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  LambdaTriggerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: LambdaECSRunTaskPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - ecs:DescribeTasks
+                  - ecs:DescribeTaskDefinition
+                  - iam:PassRole
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  SemanticSearchTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub 'semantic-search-ingestion-task-${BranchName}'
+      Cpu: '512'
+      Memory: '1024'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt SemanticSearchTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: semantic-search-ingestion
+          Image: !Join
+            - ":"
+            - - !ImportValue
+                'Fn::Sub': warc-file-extractor-ecr-uri-${BranchName}
+              - latest
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/semantic-search-ingestion
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: ecs
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub 'semantic-search-ingestion-cluster-${BranchName}'
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  LambdaTriggerTaskFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'semantic-search-trigger-task-${BranchName}'
+      Handler: index.handler
+      Role: !GetAtt LambdaTriggerExecutionRole.Arn
+      Runtime: python3.12
+      Timeout: 60
+      Environment:
+        Variables:
+          CLUSTER: !Ref ECSCluster
+          TASK_DEFINITION: !Ref SemanticSearchTaskDefinition
+          SUBNETS: !Join [",", !Ref SubnetIds]
+          VPC: !Ref VpcId
+          BRANCH_NAME: !Ref BranchName
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+
+          def handler(event, context):
+              ecs = boto3.client('ecs')
+              response = ecs.run_task(
+                  cluster=os.environ['CLUSTER'],
+                  taskDefinition=os.environ['TASK_DEFINITION'],
+                  launchType='FARGATE',
+                  networkConfiguration={
+                      'awsvpcConfiguration': {
+                          'subnets': os.environ['SUBNETS'].split(','),
+                          'assignPublicIp': 'ENABLED'
+                      }
+                  }
+              )
+              return response
+
+  SemanticSearchQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'semantic-search-ingestion-queue-${BranchName}'
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  SemanticSearchInputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'semantic-search-ingestion-input-${BranchName}'
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+
+  SemanticSearchOutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'semantic-search-ingestion-output-${BranchName}'
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+
+  SemanticSearchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/semantic-search-ingestion
+      RetentionInDays: 14
+
+Outputs:
+  TaskDefinitionArn:
+    Description: ARN of the ECS Task Definition
+    Value: !Ref SemanticSearchTaskDefinition
+    Export:
+      Name: !Sub "${AWS::StackName}-TaskDefinitionArn-${BranchName}"
+  LambdaFunctionArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt LambdaTriggerTaskFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaFunctionArn-${BranchName}"
+  SemanticSearchInputBucketName:
+    Description: Name of the S3 input bucket
+    Value: !Ref SemanticSearchInputBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-SemanticSearchInputBucketName-${BranchName}"
+  SemanticSearchOutputBucketName:
+    Description: Name of the S3 output bucket
+    Value: !Ref SemanticSearchOutputBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-SemanticSearchOutputBucketName-${BranchName}"
+  SemanticSearchQueueUrl:
+    Description: URL of the SQS queue
+    Value: !Ref SemanticSearchQueue
+    Export:
+      Name: !Sub "${AWS::StackName}-SemanticSearchQueueUrl-${BranchName}"
