@@ -172,7 +172,7 @@ Resources:
                           {
                               'name': 'semantic-search-ingestion',
                               'environment': [
-                                  {'name': 'BATCH_FILE_MANIFEST', 'value': manifest_s3_path}
+                                  {'name': 'BATCH_FILE_MANIFEST', 'value': manifest_key}
                               ]
                           }
                       ]
@@ -242,6 +242,14 @@ Resources:
                   - !Sub "arn:aws:s3:::semantic-search-ingestion-input-${BranchName}/*"
                   - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}"
                   - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}/*"
+              - Effect: Allow
+                Action: 
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - "arn:aws:s3:::commoncrawl*"
+                  - "arn:aws:s3:::commoncrawl*/*"
+                  - "arn:aws:s3:::*"
               - Effect: Allow
                 Action: "sqs:*"
                 Resource:
