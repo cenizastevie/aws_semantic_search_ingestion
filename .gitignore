@@ -1,2 +1,2 @@
 *.env
-local_models.py/hf_models/*
+local_model_files/hf_models/*
