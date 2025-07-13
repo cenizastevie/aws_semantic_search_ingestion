@@ -1,7 +1,7 @@
 services:
   hf-notebook:
     build: .
-    container_name: hf_notebook
+    container_name: local_inference_test
     volumes:
       - ./notebooks:/workspace
       - ../2_sagemaker_batch_job/inference.py:/workspace/inference.py
@@ -9,7 +9,7 @@ services:
     ports:
       - "8888:8888"
     env_file:
-      - ../.env
+      - .env
     # runtime: nvidia  # remove this line + environment if no GPU
     # environment:
     #   - NVIDIA_VISIBLE_DEVICES=all
