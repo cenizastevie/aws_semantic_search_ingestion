@@ -1,11 +1,16 @@
-# Dockerfile for WARC File Extractor Batch Task
-FROM public.ecr.aws/lambda/python:3.9
+# Dockerfile for WARC File Extractor ECS Fargate Task
+FROM python:3.9-slim
 
 # Install system dependencies
-RUN yum install -y gcc libxml2-devel libxslt-devel python3-devel
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libxml2-dev \
+    libxslt1-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
-WORKDIR /var/task
+WORKDIR /app
 
 # Copy requirements and install
 COPY requirements.txt ./
@@ -14,5 +19,5 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # Copy the rest of the code
 COPY . .
 
-# Set the entrypoint for AWS Batch (adjust as needed)
+# Set the entrypoint for ECS Fargate
 CMD ["python", "main.py"]

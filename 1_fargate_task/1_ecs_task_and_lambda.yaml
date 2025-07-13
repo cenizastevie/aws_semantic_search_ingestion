@@ -86,11 +86,12 @@ Resources:
     Properties:
       Family: !Sub 'semantic-search-ingestion-task-${BranchName}'
       Cpu: '512'
-      Memory: '1024'
+      Memory: '2048'
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
       ExecutionRoleArn: !GetAtt SemanticSearchTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt SemanticSearchTaskRole.Arn
       ContainerDefinitions:
         - Name: semantic-search-ingestion
           Image: !Join
@@ -171,7 +172,7 @@ Resources:
                           {
                               'name': 'semantic-search-ingestion',
                               'environment': [
-                                  {'name': 'BATCH_FILE_MANIFEST', 'value': manifest_s3_path}
+                                  {'name': 'BATCH_FILE_MANIFEST', 'value': manifest_key}
                               ]
                           }
                       ]
@@ -217,6 +218,45 @@ Resources:
     Properties:
       LogGroupName: /ecs/semantic-search-ingestion
       RetentionInDays: 14
+
+  SemanticSearchTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: SemanticSearchTaskS3SQSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: "s3:*"
+                Resource:
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-input-${BranchName}"
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-input-${BranchName}/*"
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}"
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}/*"
+              - Effect: Allow
+                Action: 
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - "arn:aws:s3:::commoncrawl*"
+                  - "arn:aws:s3:::commoncrawl*/*"
+                  - "arn:aws:s3:::*"
+              - Effect: Allow
+                Action: "sqs:*"
+                Resource:
+                  - !GetAtt SemanticSearchQueue.Arn
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
 
 Outputs:
   TaskDefinitionArn:

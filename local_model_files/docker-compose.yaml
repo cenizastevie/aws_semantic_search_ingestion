@@ -1,0 +1,14 @@
+services:
+  hf-notebook:
+    build: .
+    container_name: hf_notebook
+    volumes:
+      - ./notebooks:/workspace
+    working_dir: /workspace
+    ports:
+      - "8888:8888"
+    # runtime: nvidia  # remove this line + environment if no GPU
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    command: >
+      jupyter notebook --ip=0.0.0.0 --port=8888 --allow-root --NotebookApp.token='' --NotebookApp.password=''

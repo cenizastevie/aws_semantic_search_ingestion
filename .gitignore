@@ -1,1 +1,2 @@
 *.env
+local_model_files/hf_models/*

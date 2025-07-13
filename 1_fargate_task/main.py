@@ -121,7 +121,7 @@ if __name__ == '__main__':
     for warc_file in warc_files:
         logger.info(f'Processing WARC file: {warc_file}')
         with get_warc_file_stream(warc_file) as warc_stream:
-            process_warc_stream(warc_stream)
+            process_warc_stream(warc_stream, warc_file)
         logger.info(f'Finished processing WARC file: {warc_file}')
     logger.info("status completed")
 

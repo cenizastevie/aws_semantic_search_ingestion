@@ -1,4 +1,5 @@
-newspaper3k
-warcio
-lxml_html_clean
-boto3
+newspaper3k==0.2.8
+warcio==1.7.5
+lxml_html_clean==0.4.2
+boto3==1.38.39
+langdetect==1.0.9
