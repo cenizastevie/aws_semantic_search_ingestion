@@ -8,8 +8,6 @@ services:
     working_dir: /workspace
     ports:
       - "8888:8888"
-    env_file:
-      - ../.env
     # runtime: nvidia  # remove this line + environment if no GPU
     # environment:
     #   - NVIDIA_VISIBLE_DEVICES=all

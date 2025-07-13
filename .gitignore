@@ -1,2 +1,3 @@
 *.env
 local_model_files/hf_models/*
+local_model_files/notebooks/hf_models/*
