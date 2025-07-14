@@ -7,3 +7,4 @@ tokenizers==0.15.2
 sentencepiece==0.1.99
 huggingface-hub==0.20.3
 sentence-transformers
+boto3==1.38.39

@@ -83,45 +83,48 @@ def model_fn(model_dir):
 
 def predict_fn(input_data, model_components):
     """
-    Performs summarization, sentiment analysis, and embedding generation.
+    Accepts a list of dicts with keys: url, title, language, domain, warc_file, scrape_date, content.
+    Performs summarization, sentiment analysis, and embedding generation on the 'summary' (not original content).
+    Returns a list of dicts with keys: title, summary, sentiment_label, sentiment_score, embedding.
     """
     summarizer = model_components.get("summarizer")
     sentiment_analyzer = model_components.get("sentiment_analyzer")
     bedrock_client = model_components.get("bedrock_client")
 
     results = []
-    for text in input_data:
+    for row in input_data:
+        text = row.get("content", "")
         summary = ""
         sentiment_label = "UNKNOWN"
         sentiment_score = 0.0
         embedding = []
 
         # 1. Summarization
-        if summarizer:
+        if summarizer and text:
             try:
                 summary_output = summarizer(text, max_length=150, min_length=30, do_sample=False)
                 summary = summary_output[0]['summary_text'] if summary_output else ""
             except Exception as e:
                 logger.error(f"Error during summarization: {e}")
 
-        # 2. Sentiment Analysis
-        if sentiment_analyzer:
+        # 2. Sentiment Analysis (on summary)
+        if sentiment_analyzer and summary:
             try:
-                sentiment_output = sentiment_analyzer(text)
+                sentiment_output = sentiment_analyzer(summary)
                 sentiment_label = sentiment_output[0]['label'] if sentiment_output else "UNKNOWN"
                 sentiment_score = sentiment_output[0]['score'] if sentiment_output else 0.0
             except Exception as e:
                 logger.error(f"Error during sentiment analysis: {e}")
 
-        # 3. Titan Embeddings
-        if bedrock_client:
+        # 3. Titan Embeddings (on summary)
+        if bedrock_client and summary:
             try:
                 titan_embedding_payload = {
-                    "inputText": text
+                    "inputText": summary
                 }
                 titan_embedding_response = bedrock_client.invoke_model(
                     body=json.dumps(titan_embedding_payload),
-                    modelId="amazon.titan-embed-text-v1", # Verify latest version
+                    modelId="amazon.titan-embed-text-v1",
                     accept="application/json",
                     contentType="application/json"
                 )
@@ -129,16 +132,17 @@ def predict_fn(input_data, model_components):
                 embedding = embedding_body.get("embedding")
             except Exception as e:
                 logger.error(f"Error generating Titan embedding: {e}")
-                embedding = [] # Handle errors gracefully
+                embedding = []
         else:
-            logger.warning("Bedrock client not initialized. Skipping Titan embeddings.")
+            if not bedrock_client:
+                logger.warning("Bedrock client not initialized. Skipping Titan embeddings.")
 
         results.append({
-            "original_text": text,
-            "summary": summary,
-            "sentiment_label": sentiment_label,
-            "sentiment_score": sentiment_score,
-            "titan_embedding": embedding
+            'title': row.get('title', ''),
+            'summary': summary,
+            'sentiment_label': sentiment_label,
+            'sentiment_score': sentiment_score,
+            'embedding': embedding
         })
     return results
 
