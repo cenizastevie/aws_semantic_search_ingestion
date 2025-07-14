@@ -208,6 +208,58 @@ Resources:
         - Key: project
           Value: aws-semantic-search-ingestion
 
+  SageMakerDockerBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: SageMakerDockerBuildProject
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Value: !Ref AWSAccountId
+          - Name: BRANCH_NAME
+            Value: !Ref BranchName
+          - Name: REPOSITORY_URI
+            Value: !Sub "${AWSAccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/assi-sagemaker-${BranchName}"
+          - Name: REGION
+            Value: !Ref AWS::Region
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 2_sagemaker_batch_job/2_ecr_building_image.buildspec.yaml
+      TimeoutInMinutes: 30
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  SageMakerECRDeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: SageMakerECRDeployProject
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: BRANCH_NAME
+            Value: !Ref BranchName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 2_sagemaker_batch_job/2_ecr_repository_formation.buildspec.yaml
+      TimeoutInMinutes: 15
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -276,6 +328,36 @@ Resources:
                 - Name: DeployECSLambdaOutput
               Configuration:
                 ProjectName: !Ref ECSLambdaDeployProject
+                PrimarySource: SourceOutput
+        - Name: DeploySageMakerECRRepository
+          Actions:
+            - Name: DeploySageMakerECRRepository
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: DeploySageMakerECRRepositoryOutput
+              Configuration:
+                ProjectName: !Ref SageMakerECRDeployProject
+                PrimarySource: SourceOutput
+        - Name: BuildSageMakerDocker
+          Actions:
+            - Name: BuildSageMakerDocker
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: SageMakerDockerBuildOutput
+              Configuration:
+                ProjectName: !Ref SageMakerDockerBuildProject
                 PrimarySource: SourceOutput
       Tags:
         - Key: project

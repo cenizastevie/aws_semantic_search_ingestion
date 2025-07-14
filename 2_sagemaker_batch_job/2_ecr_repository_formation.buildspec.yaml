@@ -1,0 +1,19 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.x
+    commands:
+      - echo "Verifying AWS CLI version..."
+      - aws --version # Add this to confirm you're using v2
+      # Explicitly quote the entire command to ensure YAML treats it as a single string.
+      # This is the most robust way to handle this type of YAML parsing error.
+      - "echo \"Current Branch Name: ${BRANCH_NAME}\""
+  build:
+    commands:
+      - echo "Deploying ECR CloudFormation stack..."
+      # This command is now explicitly quoted to ensure it's parsed as a single string.
+      - "aws cloudformation deploy --template-file 2_sagemaker_batch_job/2_ecr_repository_formation.yaml --stack-name assi-sagemaker-ecr-${BRANCH_NAME} --capabilities CAPABILITY_NAMED_IAM --parameter-overrides BranchName=${BRANCH_NAME}"
+artifacts:
+  files:
+    - '**/*'
