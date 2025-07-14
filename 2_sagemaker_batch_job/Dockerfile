@@ -1,20 +1,9 @@
-# Dockerfile
-# Use a base image that includes Python and necessary ML frameworks
-# Example for PyTorch and Hugging Face:
-FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
+FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-inference:1.13.1-gpu-py39-cu117-ubuntu20.04
 
-# Install Python dependencies
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install SageMaker Inference Toolkit (essential for SageMaker container protocol)
-# This provides the sagemaker-inference-toolkit entrypoint
-RUN pip install sagemaker-inference-toolkit
+COPY inference.py /opt/ml/model/code/
 
-# Copy your inference script
-COPY inference.py /opt/ml/model/code/inference.py
-
-# Set the entrypoint for SageMaker Inference Toolkit
-# This will automatically call your inference.py functions
-ENV SAGEMAKER_PROGRAM inference.py
+ENV SAGEMAKER_PROGRAM=inference.py
