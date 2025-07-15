@@ -1,0 +1,9 @@
+transformer.transform(
+    data="s3://your-bucket/input-data/",
+    content_type="text/csv",
+    split_type="Line",
+    input_filter="$[1:]",  # Optional: ignore CSV header if you kept it
+    accept="application/json",
+    output_path="s3://your-bucket/output/",
+    wait=True
+)
