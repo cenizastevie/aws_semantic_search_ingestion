@@ -1,4 +1,4 @@
-FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-inference:pytorch-2.4.0-gpu-py311
+FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-2.2.0-gpu-py310
 
 WORKDIR /app
 COPY requirements.txt .
