@@ -1,4 +1,4 @@
-FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-2.2.0-gpu-py310
+FROM public.ecr.aws/deep-learning-containers/pytorch-inference:2.5-cpu-py311-ec2
 
 WORKDIR /app
 COPY requirements.txt .
