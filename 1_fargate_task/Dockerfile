@@ -1,5 +1,5 @@
 # Dockerfile for WARC File Extractor ECS Fargate Task
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
