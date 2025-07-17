@@ -19,7 +19,7 @@ Resources:
   SageMakerModelBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'assi-sagemaker-model-${BranchName}-${AWS::AccountId}-${AWS::Region}'
+      BucketName: !Sub 'assi-sagemaker-model-${BranchName}'
       Tags:
         - Key: Name
           Value: !Sub 'assi-sagemaker-model-${BranchName}'

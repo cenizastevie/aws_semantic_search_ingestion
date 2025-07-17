@@ -286,7 +286,7 @@ Resources:
                 FullRepositoryId: !Sub "${GitHubUser}/${GitHubRepo}"
                 BranchName: !Ref BranchName
                 DetectChanges: true
-        - Name: DeployECRRepository
+        - Name: DeployECRRepositories
           Actions:
             - Name: DeployECRRepository
               ActionTypeId:
@@ -301,7 +301,20 @@ Resources:
               Configuration:
                 ProjectName: !Ref CloudFormationDeployProject
                 PrimarySource: SourceOutput
-        - Name: BuildDocker
+            - Name: DeploySageMakerECRRepository
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: DeploySageMakerECRRepositoryOutput
+              Configuration:
+                ProjectName: !Ref SageMakerECRDeployProject
+                PrimarySource: SourceOutput
+        - Name: BuildDockerImages
           Actions:
             - Name: BuildDocker
               ActionTypeId:
@@ -315,6 +328,19 @@ Resources:
                 - Name: DockerBuildOutput
               Configuration:
                 ProjectName: !Ref DockerBuildProject
+                PrimarySource: SourceOutput
+            - Name: BuildSageMakerDocker
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: SageMakerDockerBuildOutput
+              Configuration:
+                ProjectName: !Ref SageMakerDockerBuildProject
                 PrimarySource: SourceOutput
         - Name: DeployECSLambda
           Actions:
@@ -330,36 +356,6 @@ Resources:
                 - Name: DeployECSLambdaOutput
               Configuration:
                 ProjectName: !Ref ECSLambdaDeployProject
-                PrimarySource: SourceOutput
-        - Name: DeploySageMakerECRRepository
-          Actions:
-            - Name: DeploySageMakerECRRepository
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: '1'
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: DeploySageMakerECRRepositoryOutput
-              Configuration:
-                ProjectName: !Ref SageMakerECRDeployProject
-                PrimarySource: SourceOutput
-        - Name: BuildSageMakerDocker
-          Actions:
-            - Name: BuildSageMakerDocker
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: '1'
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: SageMakerDockerBuildOutput
-              Configuration:
-                ProjectName: !Ref SageMakerDockerBuildProject
                 PrimarySource: SourceOutput
       Tags:
         - Key: project
