@@ -26,6 +26,16 @@ Resources:
         - Key: project
           Value: aws-semantic-search-ingestion
 
+  SageMakerOutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'assi-sagemaker-output-${BranchName}'
+      Tags:
+        - Key: Name
+          Value: !Sub 'assi-sagemaker-output-${BranchName}'
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
 Outputs:
   ECRRepositoryArn:
     Description: ARN of the ECR repository
@@ -47,3 +57,13 @@ Outputs:
     Value: !GetAtt SageMakerModelBucket.Arn
     Export:
       Name: !Sub 'assi-sagemaker-model-bucket-arn-${BranchName}'
+  SageMakerOutputBucketName:
+    Description: Name of the S3 bucket for SageMaker output
+    Value: !Ref SageMakerOutputBucket
+    Export:
+      Name: !Sub 'assi-sagemaker-output-bucket-name-${BranchName}'
+  SageMakerOutputBucketArn:
+    Description: ARN of the S3 bucket for SageMaker output
+    Value: !GetAtt SageMakerOutputBucket.Arn
+    Export:
+      Name: !Sub 'assi-sagemaker-output-bucket-arn-${BranchName}'

@@ -1,0 +1,383 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda function to trigger SageMaker batch transform jobs for semantic search processing
+
+Parameters:
+  BranchName:
+    Type: String
+    Description: Git branch to use for deployments
+    Default: main
+
+Resources:
+  # IAM Role for Lambda function
+  SageMakerLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'assi-sagemaker-lambda-role-${BranchName}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SageMakerBatchTransformPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sagemaker:CreateTransformJob
+                  - sagemaker:DescribeTransformJob
+                  - sagemaker:StopTransformJob
+                  - sagemaker:ListTransformJobs
+                  - sagemaker:CreateModel
+                  - sagemaker:DescribeModel
+                  - sagemaker:DeleteModel
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !ImportValue
+                    'Fn::Sub': 'assi-sagemaker-model-bucket-arn-${BranchName}'
+                  - !Sub
+                    - '${BucketArn}/*'
+                    - BucketArn: !ImportValue
+                        'Fn::Sub': 'assi-sagemaker-model-bucket-arn-${BranchName}'
+                  - !Sub 'arn:aws:s3:::semantic-search-ingestion-output-${BranchName}'
+                  - !Sub 'arn:aws:s3:::semantic-search-ingestion-output-${BranchName}/*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                Resource:
+                  - !ImportValue
+                    'Fn::Sub': 'assi-sagemaker-output-bucket-arn-${BranchName}'
+                  - !Sub
+                    - '${BucketArn}/*'
+                    - BucketArn: !ImportValue
+                        'Fn::Sub': 'assi-sagemaker-output-bucket-arn-${BranchName}'
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt SageMakerExecutionRole.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  # IAM Role for SageMaker
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'assi-sagemaker-execution-role-${BranchName}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+      Policies:
+        - PolicyName: SageMakerS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !ImportValue
+                    'Fn::Sub': 'assi-sagemaker-model-bucket-arn-${BranchName}'
+                  - !Sub
+                    - '${BucketArn}/*'
+                    - BucketArn: !ImportValue
+                        'Fn::Sub': 'assi-sagemaker-model-bucket-arn-${BranchName}'
+                  - !Sub 'arn:aws:s3:::semantic-search-ingestion-output-${BranchName}'
+                  - !Sub 'arn:aws:s3:::semantic-search-ingestion-output-${BranchName}/*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                Resource:
+                  - !ImportValue
+                    'Fn::Sub': 'assi-sagemaker-output-bucket-arn-${BranchName}'
+                  - !Sub
+                    - '${BucketArn}/*'
+                    - BucketArn: !ImportValue
+                        'Fn::Sub': 'assi-sagemaker-output-bucket-arn-${BranchName}'
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: '*'
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  # Lambda function
+  SageMakerTriggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'assi-sagemaker-trigger-${BranchName}'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt SageMakerLambdaExecutionRole.Arn
+      Timeout: 300
+      Environment:
+        Variables:
+          SAGEMAKER_ROLE_ARN: !GetAtt SageMakerExecutionRole.Arn
+          MODEL_BUCKET_NAME: !ImportValue
+            'Fn::Sub': 'assi-sagemaker-model-bucket-name-${BranchName}'
+          OUTPUT_BUCKET_NAME: !ImportValue
+            'Fn::Sub': 'assi-sagemaker-output-bucket-name-${BranchName}'
+          ECR_IMAGE_URI: !ImportValue
+            'Fn::Sub': 'assi-sagemaker-ecr-uri-${BranchName}'
+          INSTANCE_TYPE: ml.t3.medium
+          BRANCH_NAME: !Ref BranchName
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import uuid
+          from datetime import datetime
+          from urllib.parse import unquote_plus
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          sagemaker = boto3.client('sagemaker')
+          s3 = boto3.client('s3')
+
+          def lambda_handler(event, context):
+              try:
+                  logger.info(f"Received event: {json.dumps(event)}")
+                  
+                  # Parse S3 event or direct invocation
+                  if 'Records' in event:
+                      # S3 event trigger - process the entire bucket/prefix
+                      buckets_to_process = set()
+                      for record in event['Records']:
+                          bucket = record['s3']['bucket']['name']
+                          key = unquote_plus(record['s3']['object']['key'])
+                          
+                          # Only process CSV files
+                          if not key.lower().endswith('.csv'):
+                              logger.info(f"Skipping non-CSV file: {key}")
+                              continue
+                          
+                          # Extract prefix (folder) from the key
+                          prefix = '/'.join(key.split('/')[:-1]) if '/' in key else ''
+                          buckets_to_process.add((bucket, prefix))
+                      
+                      # Process each unique bucket/prefix combination
+                      for bucket, prefix in buckets_to_process:
+                          process_bucket_prefix(bucket, prefix)
+                  else:
+                      # Direct invocation
+                      input_bucket = event.get('input_bucket')
+                      input_prefix = event.get('input_prefix', '')  # Default to root
+                      
+                      if not input_bucket:
+                          raise ValueError("For direct invocation, 'input_bucket' is required")
+                      
+                      process_bucket_prefix(input_bucket, input_prefix)
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps('SageMaker batch transform job(s) started successfully')
+                  }
+                  
+              except Exception as e:
+                  logger.error(f"Error: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps(f'Error: {str(e)}')
+                  }
+
+          def process_bucket_prefix(input_bucket, input_prefix):
+              """Process all CSV files in a bucket/prefix with SageMaker batch transform"""
+              
+              # Generate unique job name
+              timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+              job_id = str(uuid.uuid4())[:8]
+              
+              # Clean prefix for naming
+              prefix_name = input_prefix.replace('/', '-').replace('_', '-') if input_prefix else 'root'
+              transform_job_name = f"assi-semantic-search-{prefix_name}-{timestamp}-{job_id}"
+              model_name = f"assi-semantic-search-model-{timestamp}-{job_id}"
+              
+              # Environment variables
+              sagemaker_role_arn = os.environ['SAGEMAKER_ROLE_ARN']
+              model_bucket_name = os.environ['MODEL_BUCKET_NAME']
+              output_bucket_name = os.environ['OUTPUT_BUCKET_NAME']
+              ecr_image_uri = os.environ['ECR_IMAGE_URI']
+              instance_type = os.environ['INSTANCE_TYPE']
+              branch_name = os.environ['BRANCH_NAME']
+              
+              # Check if there are any CSV files in the prefix
+              try:
+                  prefix_to_check = f"{input_prefix}/" if input_prefix and not input_prefix.endswith('/') else input_prefix
+                  response = s3.list_objects_v2(
+                      Bucket=input_bucket,
+                      Prefix=prefix_to_check,
+                      MaxKeys=1000
+                  )
+                  
+                  csv_files = [obj['Key'] for obj in response.get('Contents', []) 
+                              if obj['Key'].lower().endswith('.csv')]
+                  
+                  if not csv_files:
+                      logger.info(f"No CSV files found in s3://{input_bucket}/{input_prefix}")
+                      return
+                  
+                  logger.info(f"Found {len(csv_files)} CSV files to process in s3://{input_bucket}/{input_prefix}")
+                  
+              except Exception as e:
+                  logger.error(f"Error listing objects in bucket: {str(e)}")
+                  raise e
+              
+              # Input and output paths
+              input_s3_path = f"s3://{input_bucket}/{input_prefix}" if input_prefix else f"s3://{input_bucket}/"
+              output_s3_path = f"s3://{output_bucket_name}/processed/{input_prefix}/" if input_prefix else f"s3://{output_bucket_name}/processed/"
+              model_data_url = f"s3://{model_bucket_name}/model.tar.gz"
+              
+              logger.info(f"Creating SageMaker model: {model_name}")
+              logger.info(f"Input path: {input_s3_path}")
+              logger.info(f"Output path: {output_s3_path}")
+              logger.info(f"Processing {len(csv_files)} CSV files")
+              
+              try:
+                  # Create SageMaker model
+                  sagemaker.create_model(
+                      ModelName=model_name,
+                      PrimaryContainer={
+                          'Image': ecr_image_uri,
+                          'ModelDataUrl': model_data_url,
+                          'Environment': {
+                              'SAGEMAKER_PROGRAM': 'inference.py',
+                              'SAGEMAKER_SUBMIT_DIRECTORY': '/opt/ml/code',
+                              'AWS_REGION': os.environ.get('AWS_REGION', 'us-east-1')
+                          }
+                      },
+                      ExecutionRoleArn=sagemaker_role_arn,
+                      Tags=[
+                          {'Key': 'project', 'Value': 'aws-semantic-search-ingestion'},
+                          {'Key': 'branch', 'Value': branch_name},
+                          {'Key': 'file-count', 'Value': str(len(csv_files))}
+                      ]
+                  )
+                  
+                  logger.info(f"Model {model_name} created successfully")
+                  
+                  # Create batch transform job
+                  sagemaker.create_transform_job(
+                      TransformJobName=transform_job_name,
+                      ModelName=model_name,
+                      TransformInput={
+                          'DataSource': {
+                              'S3DataSource': {
+                                  'S3DataType': 'S3Prefix',
+                                  'S3Uri': input_s3_path
+                              }
+                          },
+                          'ContentType': 'text/csv',
+                          'SplitType': 'Line',
+                          'CompressionType': 'None'
+                      },
+                      TransformOutput={
+                          'S3OutputPath': output_s3_path,
+                          'Accept': 'application/json',
+                          'AssembleWith': 'Line'
+                      },
+                      TransformResources={
+                          'InstanceType': instance_type,
+                          'InstanceCount': 1
+                      },
+                      Tags=[
+                          {'Key': 'project', 'Value': 'aws-semantic-search-ingestion'},
+                          {'Key': 'branch', 'Value': branch_name},
+                          {'Key': 'input-prefix', 'Value': input_prefix or 'root'},
+                          {'Key': 'file-count', 'Value': str(len(csv_files))}
+                      ]
+                  )
+                  
+                  logger.info(f"Batch transform job {transform_job_name} started successfully")
+                  logger.info(f"Job will process all CSV files in prefix: {input_prefix or 'root'}")
+                  
+              except Exception as e:
+                  logger.error(f"Error creating SageMaker job: {str(e)}")
+                  # Clean up model if transform job creation failed
+                  try:
+                      sagemaker.delete_model(ModelName=model_name)
+                  except:
+                      pass
+                  raise e
+
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  # S3 bucket notification configuration
+  S3BucketNotification:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'temp-notification-config-${BranchName}-${AWS::AccountId}'
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt SageMakerTriggerFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .csv
+
+  # Lambda permission for S3 to invoke
+  S3InvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SageMakerTriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+
+Outputs:
+  SageMakerTriggerFunctionArn:
+    Description: ARN of the SageMaker trigger Lambda function
+    Value: !GetAtt SageMakerTriggerFunction.Arn
+    Export:
+      Name: !Sub 'assi-sagemaker-trigger-function-arn-${BranchName}'
+  
+  SageMakerTriggerFunctionName:
+    Description: Name of the SageMaker trigger Lambda function
+    Value: !Ref SageMakerTriggerFunction
+    Export:
+      Name: !Sub 'assi-sagemaker-trigger-function-name-${BranchName}'
+  
+  SageMakerExecutionRoleArn:
+    Description: ARN of the SageMaker execution role
+    Value: !GetAtt SageMakerExecutionRole.Arn
+    Export:
+      Name: !Sub 'assi-sagemaker-execution-role-arn-${BranchName}'
