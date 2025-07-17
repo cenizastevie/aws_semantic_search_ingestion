@@ -222,12 +222,13 @@ Resources:
       DeliveryStreamType: DirectPut
       S3DestinationConfiguration:
         BucketARN: !GetAtt SemanticSearchOutputBucket.Arn
-        Prefix: 'processed-data/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/'
+        Prefix: '!{timestamp:yyyy}/!{timestamp:MM}/!{timestamp:dd}/!{timestamp:HH}/'
+        Suffix: '.csv'
         ErrorOutputPrefix: 'error-data/'
         BufferingHints:
           SizeInMBs: 5
           IntervalInSeconds: 60
-        CompressionFormat: GZIP
+        CompressionFormat: UNCOMPRESSED
         RoleARN: !GetAtt KinesisFirehoseRole.Arn
       Tags:
         - Key: project
