@@ -229,8 +229,6 @@ Resources:
           IntervalInSeconds: 60
         CompressionFormat: GZIP
         RoleARN: !GetAtt KinesisFirehoseRole.Arn
-        ProcessingConfiguration:
-          Enabled: false
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
