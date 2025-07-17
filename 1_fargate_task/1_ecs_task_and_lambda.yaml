@@ -223,7 +223,6 @@ Resources:
       S3DestinationConfiguration:
         BucketARN: !GetAtt SemanticSearchOutputBucket.Arn
         Prefix: '!{timestamp:yyyy}/!{timestamp:MM}/!{timestamp:dd}/!{timestamp:HH}/'
-        Suffix: '.csv'
         ErrorOutputPrefix: 'error-data/'
         BufferingHints:
           SizeInMBs: 5
