@@ -121,6 +121,8 @@ Resources:
                   - sqs:*
                   - lambda:*
                   - iam:*
+                  - firehose:*
+                  - kinesis:*
                 Resource: '*'
       Tags:
         - Key: project
