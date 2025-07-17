@@ -103,8 +103,14 @@ def process_warc_stream(stream, warc_file):
                 os.path.basename(warc_file),
                 scrape_date
             )
+            count += 1
+            if count % 100 == 0:
+                logger.info(f"Processed {count} articles from {warc_file}")
         except Exception as e:
             logger.error(f"Error uploading to S3 (key={s3_key}): {e}")
+    
+    logger.info(f"Completed processing {warc_file}: {count} articles processed")
+    return count
 
 if __name__ == '__main__':
     batch_file_manifest = os.environ.get('BATCH_FILE_MANIFEST', 'batch_file_manifest_test.csv')
@@ -118,12 +124,16 @@ if __name__ == '__main__':
         for row in reader:
             allowed_domains.add(row['domain'].strip())
 
+    total_articles = 0
     for warc_file in warc_files:
         logger.info(f'Processing WARC file: {warc_file}')
         with get_warc_file_stream(warc_file) as warc_stream:
-            process_warc_stream(warc_stream, warc_file)
+            articles_processed = process_warc_stream(warc_stream, warc_file)
+            total_articles += articles_processed
         logger.info(f'Finished processing WARC file: {warc_file}')
-    logger.info("status completed")
+    
+    logger.info(f"Processing completed. Total articles processed: {total_articles}")
+    logger.info("All data sent to Kinesis Firehose for 1-minute batching to S3")
 
 # def handler(event, context):
 #     batch_file_manifest = os.environ.get('BATCH_FILE_MANIFEST', 'batch_file_manifest_test.csv')

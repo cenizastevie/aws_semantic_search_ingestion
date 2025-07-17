@@ -1,28 +1,46 @@
 import boto3
 import os
+import json
+import csv
+import io
 from typing import BinaryIO
 
 s3 = boto3.client('s3')
-sqs = boto3.client('sqs')
+firehose = boto3.client('firehose')
 output_bucket = os.environ.get('OUTPUT_BUCKET', 'sea-news-articles')
 input_bucket = os.environ.get('INPUT_BUCKET', 'sea-warc-input')
-sqs_queue_url = os.environ.get('SQS_QUEUE_URL', '')
+firehose_stream_name = os.environ.get('KINESIS_FIREHOSE_STREAM', '')
 is_local = os.environ.get('IS_LOCAL', 'true').lower() == 'true'
 print(f'Running in {"local" if is_local else "remote"} mode')
 def upload_file(file_path: str, key: str):
     """Upload a local file to S3."""
     s3.upload_file(file_path, output_bucket, key)
 
-def send_sqs_message(message_body: str, message_attributes: dict = None):
-    """Send a message to the configured SQS queue."""
-    if not sqs_queue_url:
-        print('SQS_QUEUE_URL not set, skipping SQS message send.')
+def send_firehose_record(record_data: dict):
+    """Send a record to the configured Kinesis Firehose stream in CSV format."""
+    if not firehose_stream_name:
+        print('KINESIS_FIREHOSE_STREAM not set, skipping Firehose record send.')
         return
-    sqs.send_message(
-        QueueUrl=sqs_queue_url,
-        MessageBody=message_body,
-        MessageAttributes=message_attributes or {}
-    )
+    
+    # Convert record to CSV format
+    csv_buffer = io.StringIO()
+    fieldnames = ['timestamp', 's3_key', 'url', 'title', 'language', 'domain', 'warc_file', 'scrape_date', 'content_length', 'bucket']
+    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+    
+    # Write only the data row (no header)
+    writer.writerow(record_data)
+    csv_line = csv_buffer.getvalue()
+    
+    try:
+        response = firehose.put_record(
+            DeliveryStreamName=firehose_stream_name,
+            Record={
+                'Data': csv_line.encode('utf-8')
+            }
+        )
+        print(f"Sent CSV record to Firehose: {response['RecordId']}")
+    except Exception as e:
+        print(f"Error sending record to Firehose: {e}")
 
 def upload_bytes(data: bytes, 
                  key: str, url: str, 
@@ -32,31 +50,23 @@ def upload_bytes(data: bytes,
                  warc_file: str = 'warc_file',
                  scrape_date: str = 'unknown', 
     ):
-    """Upload bytes data to S3 as an object and forward a message to SQS as notification."""
-    s3.put_object(
-        Bucket=output_bucket, 
-        Key=key, 
-        Body=data, 
-        Metadata={
-            'url': url, 
-            'title': title, 
-            'language': language, 
-            'domain': domain,
-            'warc_file': warc_file,
-            'scrape_date': scrape_date
-        }
-    )
+    """Send article data and metadata to Firehose for batched CSV upload to S3."""
     
-    message_body = f"Uploaded {key} from {url} (title: {title}, lang: {language})"
-    send_sqs_message(message_body, {
-        'Key': {'StringValue': key, 'DataType': 'String'},
-        'URL': {'StringValue': url, 'DataType': 'String'},
-        'Title': {'StringValue': title, 'DataType': 'String'},
-        'Language': {'StringValue': language, 'DataType': 'String'},
-        'Domain': {'StringValue': domain, 'DataType': 'String'},
-        'WarcFile': {'StringValue': warc_file, 'DataType': 'String'},
-        'ScrapeDate': {'StringValue': scrape_date, 'DataType': 'String'}
-    })
+    # Send structured data to Firehose (no direct S3 upload)
+    firehose_record = {
+        'timestamp': scrape_date,
+        's3_key': key,
+        'url': url,
+        'title': title,
+        'language': language,
+        'domain': domain,
+        'warc_file': warc_file,
+        'scrape_date': scrape_date,
+        'content_length': len(data),
+        'bucket': output_bucket
+    }
+    
+    send_firehose_record(firehose_record)
 
 def get_file_stream(bucket: str, key: str) -> BinaryIO:
     """Return a file-like stream for an S3 object."""

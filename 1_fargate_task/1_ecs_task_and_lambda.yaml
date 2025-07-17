@@ -40,10 +40,6 @@ Resources:
                   - !Sub "arn:aws:s3:::semantic-search-ingestion-input-${BranchName}/*"
                   - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}"
                   - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}/*"
-              - Effect: Allow
-                Action: "sqs:*"
-                Resource:
-                  - !GetAtt SemanticSearchQueue.Arn
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
@@ -113,8 +109,8 @@ Resources:
               Value: !Ref SemanticSearchInputBucket
             - Name: IS_LOCAL
               Value: "false"
-            - Name: SQS_QUEUE_URL
-              Value: !Ref SemanticSearchQueue
+            - Name: KINESIS_FIREHOSE_STREAM
+              Value: !Ref SemanticSearchFirehose
             - Name: BATCH_FILE_MANIFEST
               Value: ""  # To be overridden by Lambda at runtime
 
@@ -185,10 +181,56 @@ Resources:
                   return str(obj)
               return json.loads(json.dumps(response, default=default_serializer))
 
-  SemanticSearchQueue:
-    Type: AWS::SQS::Queue
+  KinesisFirehoseRole:
+    Type: AWS::IAM::Role
     Properties:
-      QueueName: !Sub 'semantic-search-ingestion-queue-${BranchName}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: FirehoseS3DeliveryPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:PutObject
+                Resource:
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}"
+                  - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}/*"
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource: '*'
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  SemanticSearchFirehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Sub 'semantic-search-ingestion-firehose-${BranchName}'
+      DeliveryStreamType: DirectPut
+      S3DestinationConfiguration:
+        BucketARN: !GetAtt SemanticSearchOutputBucket.Arn
+        Prefix: 'processed-data/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/'
+        ErrorOutputPrefix: 'error-data/'
+        BufferingHints:
+          SizeInMBs: 5
+          IntervalInSeconds: 60
+        CompressionFormat: GZIP
+        RoleARN: !GetAtt KinesisFirehoseRole.Arn
+        ProcessingConfiguration:
+          Enabled: false
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
@@ -251,9 +293,11 @@ Resources:
                   - "arn:aws:s3:::commoncrawl*/*"
                   - "arn:aws:s3:::*"
               - Effect: Allow
-                Action: "sqs:*"
+                Action:
+                  - "firehose:PutRecord"
+                  - "firehose:PutRecordBatch"
                 Resource:
-                  - !GetAtt SemanticSearchQueue.Arn
+                  - !GetAtt SemanticSearchFirehose.Arn
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
@@ -279,8 +323,8 @@ Outputs:
     Value: !Ref SemanticSearchOutputBucket
     Export:
       Name: !Sub "${AWS::StackName}-SemanticSearchOutputBucketName-${BranchName}"
-  SemanticSearchQueueUrl:
-    Description: URL of the SQS queue
-    Value: !Ref SemanticSearchQueue
+  SemanticSearchFirehoseName:
+    Description: Name of the Kinesis Firehose delivery stream
+    Value: !Ref SemanticSearchFirehose
     Export:
-      Name: !Sub "${AWS::StackName}-SemanticSearchQueueUrl-${BranchName}"
+      Name: !Sub "${AWS::StackName}-SemanticSearchFirehoseName-${BranchName}"
