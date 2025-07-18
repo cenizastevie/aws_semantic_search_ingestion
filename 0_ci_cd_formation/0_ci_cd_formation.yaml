@@ -124,7 +124,6 @@ Resources:
                   - firehose:*
                   - kinesis:*
                   - sagemaker:*
-                  - glue:*
                 Resource: '*'
       Tags:
         - Key: project

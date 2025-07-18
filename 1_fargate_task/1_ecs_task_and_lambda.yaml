@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ECS Task Definition and Lambda trigger for semantic search ingestion with Kinesis Firehose to CSV conversion.
+Description: ECS Task Definition and Lambda trigger for semantic search ingestion
 
 Parameters:
   VpcId:
@@ -112,7 +112,7 @@ Resources:
             - Name: KINESIS_FIREHOSE_STREAM
               Value: !Ref SemanticSearchFirehose
             - Name: BATCH_FILE_MANIFEST
-              Value: "" # To be overridden by Lambda at runtime
+              Value: ""  # To be overridden by Lambda at runtime
 
   ECSCluster:
     Type: AWS::ECS::Cluster
@@ -192,7 +192,7 @@ Resources:
               Service: firehose.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: FirehoseS3DeliveryAndGlueAccessPolicy
+        - PolicyName: FirehoseS3DeliveryPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -210,67 +210,16 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:PutLogEvents
-                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/kinesisfirehose/semantic-search-ingestion-firehose-${BranchName}:log-stream:*"
-              # *** NEW: Permissions for AWS Glue Access ***
-              - Effect: Allow
-                Action:
-                  - glue:GetTable
-                  - glue:GetDatabase
-                  - glue:GetPartitions
-                Resource: "*" # Consider restricting this to specific Glue resources if possible for better security
+                Resource: '*'
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
-
-  # *** NEW: AWS Glue Database for Firehose Schema ***
-  SemanticSearchGlueDatabase:
-    Type: AWS::Glue::Database
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseInput:
-        Name: !Sub "semantic-search-firehose-db-${BranchName}" # A dedicated database for Firehose schemas
-
-  # *** NEW: AWS Glue Table for Firehose Input Schema ***
-  # This table defines the structure of the JSON data you will send to Firehose.
-  SemanticSearchFirehoseInputTable:
-    Type: AWS::Glue::Table
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseName: !Ref SemanticSearchGlueDatabase
-      TableInput:
-        Name: !Sub "semantic_search_input_schema_${BranchName}" # Table name (lowercase, no hyphens)
-        Description: "Schema for Kinesis Firehose JSON input to CSV conversion"
-        TableType: EXTERNAL_TABLE
-        Parameters:
-          classification: json # Crucial: Indicates the table describes JSON data
-        StorageDescriptor:
-          Columns: # These columns must match your incoming JSON fields
-            - Name: url
-              Type: string
-            - Name: title
-              Type: string
-            - Name: language
-              Type: string
-            - Name: domain
-              Type: string
-            - Name: warc_file
-              Type: string
-            - Name: scrape_date
-              Type: string
-            - Name: content
-              Type: string
-          Location: "s3://some-dummy-location/" # This S3 location is a placeholder for Glue table definition, not used by Firehose
-          InputFormat: "org.apache.hadoop.mapred.TextInputFormat"
-          OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
-          SerdeInfo:
-            SerializationLibrary: "org.openx.data.jsonserde.JsonSerDe" # Use JSON SerDe for the Glue table
 
   SemanticSearchFirehose:
     Type: AWS::KinesisFirehose::DeliveryStream
     Properties:
       DeliveryStreamName: !Sub 'semantic-search-ingestion-firehose-${BranchName}'
       DeliveryStreamType: DirectPut
-      # *** MODIFIED: Use ExtendedS3DestinationConfiguration for data conversion ***
       ExtendedS3DestinationConfiguration:
         BucketARN: !GetAtt SemanticSearchOutputBucket.Arn
         Prefix: '!{timestamp:yyyy}/!{timestamp:MM}/!{timestamp:dd}/!{timestamp:HH}/'
@@ -280,39 +229,8 @@ Resources:
           IntervalInSeconds: 60
         CompressionFormat: UNCOMPRESSED
         RoleARN: !GetAtt KinesisFirehoseRole.Arn
-        CloudWatchLoggingOptions: # Recommended for monitoring
-          Enabled: true
-          LogGroupName: !Sub '/aws/kinesisfirehose/semantic-search-ingestion-firehose-${BranchName}'
-          LogStreamName: S3Delivery
-        # *** NEW: Data Format Conversion Configuration ***
-        DataFormatConversionConfiguration:
-          Enabled: true
-          InputFormatConfiguration:
-            Deserializer:
-              HiveJsonSerDe: {} # Firehose will expect JSON input based on Glue table
-          OutputFormatConfiguration:
-            Serializer:
-              OpenCSVSerDe:
-                # Specify column names in the exact order for your CSV output.
-                # These must match the columns in your Glue table.
-                ColumnNames:
-                  - url
-                  - title
-                  - language
-                  - domain
-                  - warc_file
-                  - scrape_date
-                  - content
-                # Optional: Delimiter (default is comma)
-                # Delimiter: ","
-                # Optional: Line Terminator (default is newline)
-                # LineTerminator: "\n"
-          SchemaConfiguration:
-            # Point to the Glue table that defines the schema of your incoming JSON data
-            CatalogId: !Ref AWS::AccountId
-            DatabaseName: !Ref SemanticSearchGlueDatabase
-            TableName: !Ref SemanticSearchFirehoseInputTable
-            RoleARN: !GetAtt KinesisFirehoseRole.Arn # Firehose needs permission to access Glue
+        FileExtension: '.csv'
+        
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
@@ -367,7 +285,7 @@ Resources:
                   - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}"
                   - !Sub "arn:aws:s3:::semantic-search-ingestion-output-${BranchName}/*"
               - Effect: Allow
-                Action:
+                Action: 
                   - "s3:GetObject"
                   - "s3:ListBucket"
                 Resource:
@@ -410,9 +328,3 @@ Outputs:
     Value: !Ref SemanticSearchFirehose
     Export:
       Name: !Sub "${AWS::StackName}-SemanticSearchFirehoseName-${BranchName}"
-  SemanticSearchGlueDatabaseName:
-    Description: Name of the AWS Glue Database for Firehose schema.
-    Value: !Ref SemanticSearchGlueDatabase
-  SemanticSearchFirehoseInputTableName:
-    Description: Name of the AWS Glue Table defining the Firehose input schema.
-    Value: !Ref SemanticSearchFirehoseInputTable
