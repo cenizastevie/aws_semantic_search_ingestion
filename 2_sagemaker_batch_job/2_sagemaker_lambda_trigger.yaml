@@ -131,9 +131,27 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:*:*:log-group:/aws/sagemaker/transform-jobs/assi-semantic-search-${BranchName}*'
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
+
+  # CloudWatch Log Group for SageMaker jobs
+  SageMakerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/sagemaker/transform-jobs/assi-semantic-search-${BranchName}'
+      RetentionInDays: 14
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+        - Key: branch
+          Value: !Ref BranchName
 
   # Lambda function
   SageMakerTriggerFunction:
