@@ -36,6 +36,7 @@ Resources:
                   - sagemaker:CreateModel
                   - sagemaker:DescribeModel
                   - sagemaker:DeleteModel
+                  - sagemaker:AddTags
                 Resource: '*'
               - Effect: Allow
                 Action:
