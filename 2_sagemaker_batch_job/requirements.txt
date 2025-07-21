@@ -1,6 +1,6 @@
+numpy
+transformers
 pandas
 boto3
-transformers
-torch
 sagemaker-inference
 accelerate
