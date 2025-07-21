@@ -153,7 +153,7 @@ Resources:
             'Fn::Sub': 'assi-sagemaker-output-bucket-name-${BranchName}'
           ECR_IMAGE_URI: !ImportValue
             'Fn::Sub': 'assi-sagemaker-ecr-uri-${BranchName}'
-          INSTANCE_TYPE: ml.t3.medium
+          INSTANCE_TYPE: ml.m5.large
           BRANCH_NAME: !Ref BranchName
       Code:
         ZipFile: |
