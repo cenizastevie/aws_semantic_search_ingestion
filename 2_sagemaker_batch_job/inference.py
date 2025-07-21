@@ -146,4 +146,33 @@ def predict_fn(input_data, model_components):
         })
     return results
 
-# ... (input_fn and output_fn as before) ...
+def input_fn(request_body, request_content_type):
+    """
+    Parse input data for inference.
+    For batch transform, this receives CSV data.
+    """
+    logger.info(f"Received content type: {request_content_type}")
+    
+    if request_content_type == 'text/csv':
+        # Parse CSV input - expecting the format from your Firehose records
+        import csv
+        import io
+        
+        data = []
+        csv_reader = csv.DictReader(io.StringIO(request_body))
+        for row in csv_reader:
+            data.append(row)
+        return data
+    else:
+        raise ValueError(f"Unsupported content type: {request_content_type}")
+
+def output_fn(prediction, content_type):
+    """
+    Format the prediction output.
+    """
+    logger.info(f"Formatting output with content type: {content_type}")
+    
+    if content_type == 'application/json':
+        return json.dumps(prediction)
+    else:
+        raise ValueError(f"Unsupported content type: {content_type}")
