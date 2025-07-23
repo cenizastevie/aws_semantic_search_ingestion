@@ -5,6 +5,7 @@ services:
       - .env
     volumes:
       - ./models:/opt/ml/model
+      - ./inference.py:/opt/ml/model/inference.py
       - ./input:/opt/ml/processing/input
       - ./output:/opt/ml/processing/output
     command: []

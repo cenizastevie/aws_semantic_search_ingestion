@@ -1,77 +1,92 @@
 import os
 import json
-import boto3
 import logging
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification, AutoModelForSeq2SeqLM
+import boto3
+import torch
+import csv
+import io
+import copy
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    pipeline
+)
 
-# Configure logger
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global variables for models/clients (loaded once)
-summarizer_pipeline = None # Using pipeline for simplicity
-sentiment_pipeline = None # Using pipeline for simplicity
-bedrock_runtime_client = None
-
 def model_fn(model_dir):
     """
-    Loads the models/clients for inference.
-    `model_dir` is the path where model.tar.gz contents are extracted.
+    Load the models for inference
+    
+    Args:
+        model_dir (str): Directory where model artifacts are stored
+    
+    Returns:
+        dict: Dictionary containing loaded models and clients
     """
-    global summarizer_pipeline
-    global sentiment_pipeline
-    global bedrock_runtime_client
-
-    logger.info(f"Loading models from: {model_dir}")
-
-    # --- Load Summarization Model ---
-    # Assuming your summarization model artifacts are in model_dir/summarization_model
-    summarization_model_path = os.path.join(model_dir, "summarization_model")
-    if os.path.exists(summarization_model_path):
-        logger.info(f"Loading summarization model from {summarization_model_path}...")
-        # Example: Load a Hugging Face summarization pipeline
-        summarizer_pipeline = pipeline(
-            "summarization",
-            model=summarization_model_path,
-            tokenizer=summarization_model_path,
-            device=-1 # -1 for CPU, 0 for GPU if available and configured
-        )
-        logger.info("Summarization model loaded.")
+    logger.info(f"Loading models from {model_dir}")
+    
+    # Get AWS region from environment variable or default to us-east-1
+    aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+    
+    # Load sentiment analysis model and tokenizer
+    sentiment_path = os.path.join(model_dir, "sentiment")
+    logger.info(f"Loading sentiment model from {sentiment_path}")
+    
+    if os.path.exists(sentiment_path):
+        try:
+            sentiment_tokenizer = AutoTokenizer.from_pretrained(sentiment_path)
+            sentiment_model = AutoModelForSequenceClassification.from_pretrained(sentiment_path)
+            sentiment_pipeline = pipeline(
+                "sentiment-analysis", 
+                model=sentiment_model, 
+                tokenizer=sentiment_tokenizer,
+                device=0 if torch.cuda.is_available() else -1
+            )
+            logger.info("Sentiment analysis model loaded successfully")
+        except Exception as e:
+            logger.error(f"Error loading sentiment model: {str(e)}")
+            sentiment_pipeline = None
     else:
-        # Fallback or error if model not found
-        logger.warning(f"Summarization model not found at {summarization_model_path}. "
-                       "Summarization will not be performed or will rely on external API if implemented.")
-        summarizer_pipeline = None # Or raise an error if summarization is mandatory
-
-    # --- Load Sentiment Analysis Model ---
-    # Assuming your sentiment model artifacts are in model_dir/sentiment_model
-    sentiment_model_path = os.path.join(model_dir, "sentiment_model")
-    if os.path.exists(sentiment_model_path):
-        logger.info(f"Loading sentiment analysis model from {sentiment_model_path}...")
-        # Example: Load a Hugging Face sentiment analysis pipeline
-        sentiment_pipeline = pipeline(
-            "sentiment-analysis",
-            model=sentiment_model_path,
-            tokenizer=sentiment_model_path,
-            device=-1 # -1 for CPU, 0 for GPU if available and configured
-        )
-        logger.info("Sentiment analysis model loaded.")
+        logger.warning(f"Sentiment model path {sentiment_path} does not exist")
+        sentiment_pipeline = None
+    
+    # Load summarization model and tokenizer
+    summarization_path = os.path.join(model_dir, "summarization")
+    logger.info(f"Loading summarization model from {summarization_path}")
+    
+    if os.path.exists(summarization_path):
+        try:
+            summarization_tokenizer = AutoTokenizer.from_pretrained(summarization_path)
+            summarization_model = AutoModelForSeq2SeqLM.from_pretrained(summarization_path)
+            summarizer_pipeline = pipeline(
+                "summarization", 
+                model=summarization_model, 
+                tokenizer=summarization_tokenizer,
+                device=0 if torch.cuda.is_available() else -1
+            )
+            logger.info("Summarization model loaded successfully")
+        except Exception as e:
+            logger.error(f"Error loading summarization model: {str(e)}")
+            summarizer_pipeline = None
     else:
-        logger.warning(f"Sentiment analysis model not found at {sentiment_model_path}. "
-                       "Sentiment analysis will not be performed or will rely on external API if implemented.")
-        sentiment_pipeline = None # Or raise an error
-
-    # --- Initialize Bedrock Client for Titan Embeddings ---
-    # This does NOT load a model from model_dir; it sets up an API client.
-    # The AWS_REGION environment variable is crucial here.
-    aws_region = os.environ.get("AWS_REGION", "us-east-1") # Default to us-east-1 if not set
-    logger.info(f"Initializing Bedrock runtime client for region: {aws_region}...")
-    bedrock_runtime_client = boto3.client(
-        service_name='bedrock-runtime',
-        region_name=aws_region
-    )
-    logger.info("Bedrock runtime client initialized.")
-
+        logger.warning(f"Summarization model path {summarization_path} does not exist")
+        summarizer_pipeline = None
+    
+    # Initialize Bedrock client for embeddings
+    try:
+        bedrock_runtime_client = boto3.client(
+            service_name='bedrock-runtime',
+            region_name=aws_region
+        )
+        logger.info("Bedrock runtime client initialized")
+    except Exception as e:
+        logger.error(f"Error initializing Bedrock client: {str(e)}")
+        bedrock_runtime_client = None
+    
     # Return a dictionary of all loaded components
     return {
         "summarizer": summarizer_pipeline,
@@ -79,100 +94,133 @@ def model_fn(model_dir):
         "bedrock_client": bedrock_runtime_client
     }
 
-# ... (input_fn, predict_fn, output_fn remain largely the same, but use the global pipelines) ...
-
-def predict_fn(input_data, model_components):
-    """
-    Accepts a list of dicts with keys: url, title, language, domain, warc_file, scrape_date, content.
-    Performs summarization, sentiment analysis, and embedding generation on the 'summary' (not original content).
-    Returns a list of dicts with keys: title, summary, sentiment_label, sentiment_score, embedding.
-    """
-    summarizer = model_components.get("summarizer")
-    sentiment_analyzer = model_components.get("sentiment_analyzer")
-    bedrock_client = model_components.get("bedrock_client")
-
-    results = []
-    for row in input_data:
-        text = row.get("content", "")
-        summary = ""
-        sentiment_label = "UNKNOWN"
-        sentiment_score = 0.0
-        embedding = []
-
-        # 1. Summarization
-        if summarizer and text:
-            try:
-                summary_output = summarizer(text, max_length=150, min_length=30, do_sample=False)
-                summary = summary_output[0]['summary_text'] if summary_output else ""
-            except Exception as e:
-                logger.error(f"Error during summarization: {e}")
-
-        # 2. Sentiment Analysis (on summary)
-        if sentiment_analyzer and summary:
-            try:
-                sentiment_output = sentiment_analyzer(summary)
-                sentiment_label = sentiment_output[0]['label'] if sentiment_output else "UNKNOWN"
-                sentiment_score = sentiment_output[0]['score'] if sentiment_output else 0.0
-            except Exception as e:
-                logger.error(f"Error during sentiment analysis: {e}")
-
-        # 3. Titan Embeddings (on summary)
-        if bedrock_client and summary:
-            try:
-                titan_embedding_payload = {
-                    "inputText": summary
-                }
-                titan_embedding_response = bedrock_client.invoke_model(
-                    body=json.dumps(titan_embedding_payload),
-                    modelId="amazon.titan-embed-text-v1",
-                    accept="application/json",
-                    contentType="application/json"
-                )
-                embedding_body = json.loads(titan_embedding_response.get("body").read())
-                embedding = embedding_body.get("embedding")
-            except Exception as e:
-                logger.error(f"Error generating Titan embedding: {e}")
-                embedding = []
-        else:
-            if not bedrock_client:
-                logger.warning("Bedrock client not initialized. Skipping Titan embeddings.")
-
-        results.append({
-            'title': row.get('title', ''),
-            'summary': summary,
-            'sentiment_label': sentiment_label,
-            'sentiment_score': sentiment_score,
-            'embedding': embedding
-        })
-    return results
-
 def input_fn(request_body, request_content_type):
     """
-    Parse input data for inference.
-    For batch transform, this receives CSV data.
+    Parse input data from CSV into a list of dicts.
     """
-    logger.info(f"Received content type: {request_content_type}")
-    
+    logger.info(f"Received request with content type: {request_content_type}")
     if request_content_type == 'text/csv':
-        # Parse CSV input - expecting the format from your Firehose records
-        import csv
-        import io
-        
-        data = []
-        csv_reader = csv.DictReader(io.StringIO(request_body))
-        for row in csv_reader:
-            data.append(row)
-        return data
+        try:
+            csv_data = io.StringIO(request_body.decode('utf-8') if isinstance(request_body, bytes) else request_body)
+            reader = csv.DictReader(csv_data)
+            data = [row for row in reader]
+            required_columns = ['url', 'title', 'language', 'domain', 'warc_file', 'scrape_date', 'content']
+            for row in data:
+                for col in required_columns:
+                    if col not in row:
+                        logger.error(f"Missing required column: {col}")
+                        raise ValueError(f"Input CSV is missing required column: {col}")
+            return data
+        except Exception as e:
+            logger.error(f"Error parsing CSV data: {str(e)}")
+            raise ValueError(f"Error parsing CSV data: {str(e)}")
     else:
-        raise ValueError(f"Unsupported content type: {request_content_type}")
+        raise ValueError(f"Unsupported content type: {request_content_type}. Supported type is text/csv")
 
-def output_fn(prediction, content_type):
+def predict_fn(input_data, model_dict):
     """
-    Format the prediction output.
+    Process the input data (list of dicts) and generate predictions
     """
-    logger.info(f"Formatting output with content type: {content_type}")
-    
-    if content_type == 'application/json':
-        return json.dumps(prediction)
+    logger.info(f"Processing {len(input_data)} records")
+    summarizer = model_dict.get("summarizer")
+    sentiment_analyzer = model_dict.get("sentiment_analyzer")
+    bedrock_client = model_dict.get("bedrock_client")
+    output_data = copy.deepcopy(input_data)
+    for idx, row in enumerate(output_data):
+        try:
+            content = row.get('content', '')
+            row['summary'] = None
+            row['sentiment'] = None
+            row['sentiment_score'] = None
+            row['embedding'] = None
+            # Skip processing if content is empty
+            if not isinstance(content, str) or not content.strip():
+                logger.warning(f"Empty content for row {idx}")
+                continue
+            # 1. Generate summary
+            summary = ""
+            if summarizer:
+                try:
+                    max_length = 1024
+                    truncated_content = content[:max_length] if len(content) > max_length else content
+                    summary_result = summarizer(
+                        truncated_content,
+                        max_length=150,
+                        min_length=30,
+                        do_sample=False
+                    )
+                    summary = summary_result[0]["summary_text"] if summary_result else ""
+                    row['summary'] = summary
+                    logger.info(f"Generated summary for row {idx}")
+                except Exception as e:
+                    logger.error(f"Error generating summary for row {idx}: {str(e)}")
+            # 2. Perform sentiment analysis on original content
+            if sentiment_analyzer:
+                try:
+                    max_length = 512
+                    truncated_content = content[:max_length] if len(content) > max_length else content
+                    sentiment_result = sentiment_analyzer(truncated_content)
+                    if sentiment_result:
+                        row['sentiment'] = sentiment_result[0]["label"]
+                        row['sentiment_score'] = sentiment_result[0]["score"]
+                        logger.info(f"Generated sentiment for row {idx}")
+                except Exception as e:
+                    logger.error(f"Error generating sentiment for row {idx}: {str(e)}")
+            # 3. Generate embeddings from the summary (not the original content)
+            if bedrock_client and summary:
+                try:
+                    model_id = "amazon.titan-embed-text-v1"
+                    request_body = json.dumps({
+                        "inputText": summary,
+                        "embeddingConfig": {
+                            "outputEmbeddingLength": 1536
+                        }
+                    })
+                    response = bedrock_client.invoke_model(
+                        modelId=model_id,
+                        contentType="application/json",
+                        accept="application/json",
+                        body=request_body
+                    )
+                    response_body = json.loads(response.get("body").read())
+                    embedding = response_body.get("embedding")
+                    row['embedding'] = embedding
+                    logger.info(f"Generated embedding for row {idx}")
+                except Exception as e:
+                    logger.error(f"Error generating embedding for row {idx}: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error processing row {idx}: {str(e)}")
+    return output_data
+
+def output_fn(prediction_data, response_content_type):
+    """
+    Format the prediction data (list of dicts) as output
+    """
+    logger.info(f"Formatting output with content type: {response_content_type}")
+    if response_content_type == 'text/csv':
+        try:
+            if not prediction_data:
+                return ""
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=prediction_data[0].keys())
+            writer.writeheader()
+            writer.writerows(prediction_data)
+            return output.getvalue()
+        except Exception as e:
+            logger.error(f"Error converting results to CSV: {str(e)}")
+            return "Error converting results to CSV"
+    elif response_content_type == 'application/json':
+        try:
+            return json.dumps(prediction_data)
+        except Exception as e:
+            logger.error(f"Error converting results to JSON: {str(e)}")
+            return json.dumps({"error": "Error converting results to JSON"})
     else:
-        raise ValueError(f"Unsupported content type: {content_type}")
+        logger.warning(f"Unsupported content type: {response_content_type}, defaulting to text/csv")
+        if not prediction_data:
+            return ""
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=prediction_data[0].keys())
+        writer.writeheader()
+        writer.writerows(prediction_data)
+        return output.getvalue()
