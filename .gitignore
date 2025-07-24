@@ -4,5 +4,8 @@ local_model_files/notebooks/hf_models/*
 local_model_files/notebooks/__pycache__/*
 local_model_files/notebooks/staging/*
 local_model_files/model.tar.gz
-sagemaker_scripts/models/*
+sagemaker_scripts/models/
 sagemaker_scripts/model.tar.gz
+sagemaker_scripts/sentiment/*
+sagemaker_scripts/summarization/*
+sagemaker_scripts/__pycache__/*

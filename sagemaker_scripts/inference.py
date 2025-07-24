@@ -171,10 +171,7 @@ def predict_fn(input_data, model_dict):
                 try:
                     model_id = "amazon.titan-embed-text-v1"
                     request_body = json.dumps({
-                        "inputText": summary,
-                        "embeddingConfig": {
-                            "outputEmbeddingLength": 1536
-                        }
+                        "inputText": summary
                     })
                     response = bedrock_client.invoke_model(
                         modelId=model_id,
