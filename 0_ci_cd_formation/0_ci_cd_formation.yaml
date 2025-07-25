@@ -338,7 +338,7 @@ Resources:
               Configuration:
                 ProjectName: !Ref SageMakerECRDeployProject
                 PrimarySource: SourceOutput
-        - Name: BuildDockerImages
+        - Name: BuildDockerImagesAndSagemakerLambda
           Actions:
             - Name: BuildDocker
               ActionTypeId:
@@ -353,19 +353,19 @@ Resources:
               Configuration:
                 ProjectName: !Ref DockerBuildProject
                 PrimarySource: SourceOutput
-            # - Name: BuildSageMakerDocker
-            #   ActionTypeId:
-            #     Category: Build
-            #     Owner: AWS
-            #     Provider: CodeBuild
-            #     Version: '1'
-            #   InputArtifacts:
-            #     - Name: SourceOutput
-            #   OutputArtifacts:
-            #     - Name: SageMakerDockerBuildOutput
-            #   Configuration:
-            #     ProjectName: !Ref SageMakerDockerBuildProject
-            #     PrimarySource: SourceOutput
+            - Name: DeploySageMakerLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: DeploySageMakerLambdaOutput
+              Configuration:
+                ProjectName: !Ref SageMakerLambdaDeployProject
+                PrimarySource: SourceOutput
         - Name: DeployECSLambda
           Actions:
             - Name: DeployECSLambda
@@ -380,19 +380,6 @@ Resources:
                 - Name: DeployECSLambdaOutput
               Configuration:
                 ProjectName: !Ref ECSLambdaDeployProject
-                PrimarySource: SourceOutput
-            - Name: DeploySageMakerLambda
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: '1'
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: DeploySageMakerLambdaOutput
-              Configuration:
-                ProjectName: !Ref SageMakerLambdaDeployProject
                 PrimarySource: SourceOutput
       Tags:
         - Key: project
