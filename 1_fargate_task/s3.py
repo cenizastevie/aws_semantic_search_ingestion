@@ -55,7 +55,6 @@ def upload_bytes(data: bytes,
     # Send structured data to Firehose (no direct S3 upload)
     firehose_record = {
         'timestamp': scrape_date,
-        's3_key': key,
         'url': url,
         'title': title,
         'language': language,

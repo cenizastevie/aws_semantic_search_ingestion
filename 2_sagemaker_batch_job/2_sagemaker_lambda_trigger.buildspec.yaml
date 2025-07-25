@@ -1,0 +1,22 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.x
+    commands:
+      - echo "Verifying AWS CLI version..."
+      - aws --version
+      - "echo \"Current Branch Name: ${BRANCH_NAME}\""
+  build:
+    commands:
+      - echo "Deploying SageMaker Lambda trigger CloudFormation stack..."
+      - >
+        aws cloudformation deploy
+        --template-file 2_sagemaker_batch_job/2_sagemaker_lambda_trigger.yaml
+        --stack-name assi-sagemaker-job-${BRANCH_NAME}
+        --capabilities CAPABILITY_NAMED_IAM
+        --parameter-overrides
+        BranchName=${BRANCH_NAME}
+artifacts:
+  files:
+    - '**/*'
