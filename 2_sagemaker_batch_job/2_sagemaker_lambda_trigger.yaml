@@ -169,7 +169,7 @@ Resources:
             'Fn::Sub': 'assi-sagemaker-model-bucket-name-${BranchName}'
           OUTPUT_BUCKET_NAME: !ImportValue
             'Fn::Sub': 'assi-sagemaker-output-bucket-name-${BranchName}'
-          ECR_IMAGE_URI: 63104351884.dkr.ecr.us-east-1.amazonaws.com/huggingface-pytorch-inference:1.13.1-transformers4.26.0-cpu-py39-ubuntu20.04
+          ECR_IMAGE_URI: 763104351884.dkr.ecr.us-east-1.amazonaws.com/huggingface-pytorch-inference:1.13.1-transformers4.26.0-cpu-py39-ubuntu20.04
           INSTANCE_TYPE: ml.m5.xlarge
           BRANCH_NAME: !Ref BranchName
       Code:
