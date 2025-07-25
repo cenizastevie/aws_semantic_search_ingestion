@@ -1,9 +1,10 @@
-FROM public.ecr.aws/deep-learning-containers/pytorch-inference:2.5-cpu-py311-ec2
+FROM 763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-inference:1.13.1-cpu-py39-ubuntu20.04-sagemaker
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install pandas scikit-learn matplotlib
 
-COPY inference.py /opt/ml/model/code/inference.py
+COPY batch_inference.py /opt/ml/code/
+COPY model_handler.py /opt/ml/code/
 
-ENV SAGEMAKER_PROGRAM=inference.py
+WORKDIR /opt/ml/code
+
+ENV SAGEMAKER_PROGRAM batch_inference.py

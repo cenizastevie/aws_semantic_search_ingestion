@@ -220,17 +220,17 @@ Resources:
     Properties:
       DeliveryStreamName: !Sub 'semantic-search-ingestion-firehose-${BranchName}'
       DeliveryStreamType: DirectPut
-      S3DestinationConfiguration:
+      ExtendedS3DestinationConfiguration:
         BucketARN: !GetAtt SemanticSearchOutputBucket.Arn
-        Prefix: 'processed-data/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/hour=!{timestamp:HH}/'
+        Prefix: '!{timestamp:yyyy}/!{timestamp:MM}/!{timestamp:dd}/!{timestamp:HH}/'
         ErrorOutputPrefix: 'error-data/'
         BufferingHints:
           SizeInMBs: 5
           IntervalInSeconds: 60
-        CompressionFormat: GZIP
+        CompressionFormat: UNCOMPRESSED
         RoleARN: !GetAtt KinesisFirehoseRole.Arn
-        ProcessingConfiguration:
-          Enabled: false
+        FileExtension: '.csv'
+        
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion

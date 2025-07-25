@@ -24,7 +24,7 @@ def send_firehose_record(record_data: dict):
     
     # Convert record to CSV format
     csv_buffer = io.StringIO()
-    fieldnames = ['timestamp', 's3_key', 'url', 'title', 'language', 'domain', 'warc_file', 'scrape_date', 'content_length', 'bucket']
+    fieldnames = ['url', 'title', 'language', 'domain', 'warc_file', 'scrape_date', 'content']
     writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
     
     # Write only the data row (no header)
@@ -54,15 +54,13 @@ def upload_bytes(data: bytes,
     
     # Send structured data to Firehose (no direct S3 upload)
     firehose_record = {
-        'timestamp': scrape_date,
         'url': url,
         'title': title,
         'language': language,
         'domain': domain,
         'warc_file': warc_file,
         'scrape_date': scrape_date,
-        'content_length': len(data),
-        'bucket': output_bucket
+        'content': data.decode('utf-8')
     }
     
     send_firehose_record(firehose_record)

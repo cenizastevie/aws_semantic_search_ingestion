@@ -123,6 +123,7 @@ Resources:
                   - iam:*
                   - firehose:*
                   - kinesis:*
+                  - sagemaker:*
                 Resource: '*'
       Tags:
         - Key: project
@@ -235,6 +236,29 @@ Resources:
         Type: CODEPIPELINE
         BuildSpec: 2_sagemaker_batch_job/2_ecr_building_image.buildspec.yaml
       TimeoutInMinutes: 30
+      Tags:
+        - Key: project
+          Value: aws-semantic-search-ingestion
+
+  SageMakerLambdaDeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: SageMakerLambdaDeployProject
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: BRANCH_NAME
+            Value: !Ref BranchName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 2_sagemaker_batch_job/2_sagemaker_lambda_trigger.buildspec.yaml
+      TimeoutInMinutes: 15
       Tags:
         - Key: project
           Value: aws-semantic-search-ingestion
@@ -356,6 +380,19 @@ Resources:
                 - Name: DeployECSLambdaOutput
               Configuration:
                 ProjectName: !Ref ECSLambdaDeployProject
+                PrimarySource: SourceOutput
+            - Name: DeploySageMakerLambda
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: DeploySageMakerLambdaOutput
+              Configuration:
+                ProjectName: !Ref SageMakerLambdaDeployProject
                 PrimarySource: SourceOutput
       Tags:
         - Key: project
