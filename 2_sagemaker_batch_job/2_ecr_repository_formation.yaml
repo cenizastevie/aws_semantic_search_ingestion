@@ -5,17 +5,17 @@ Parameters:
     Default: main
 
 Resources:
-  AWSECRRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub 'assi-sagemaker-${BranchName}'
-      ImageScanningConfiguration:
-        scanOnPush: true
-      Tags:
-        - Key: Name
-          Value: !Sub 'assi-sagemaker-${BranchName}'
-        - Key: project
-          Value: aws-semantic-search-ingestion
+  # AWSECRRepository:
+  #   Type: AWS::ECR::Repository
+  #   Properties:
+  #     RepositoryName: !Sub 'assi-sagemaker-${BranchName}'
+  #     ImageScanningConfiguration:
+  #       scanOnPush: true
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub 'assi-sagemaker-${BranchName}'
+  #       - Key: project
+  #         Value: aws-semantic-search-ingestion
   SageMakerModelBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -37,16 +37,16 @@ Resources:
           Value: aws-semantic-search-ingestion
 
 Outputs:
-  ECRRepositoryArn:
-    Description: ARN of the ECR repository
-    Value: !GetAtt AWSECRRepository.Arn
-    Export:
-      Name: !Sub 'assi-sagemaker-ecr-arn-${BranchName}'
-  ECRRepositoryUri:
-    Description: URI of the ECR repository
-    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/assi-sagemaker-${BranchName}"
-    Export:
-      Name: !Sub 'assi-sagemaker-ecr-uri-${BranchName}'
+  # ECRRepositoryArn:
+  #   Description: ARN of the ECR repository
+  #   Value: !GetAtt AWSECRRepository.Arn
+  #   Export:
+  #     Name: !Sub 'assi-sagemaker-ecr-arn-${BranchName}'
+  # ECRRepositoryUri:
+  #   Description: URI of the ECR repository
+  #   Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/assi-sagemaker-${BranchName}"
+  #   Export:
+  #     Name: !Sub 'assi-sagemaker-ecr-uri-${BranchName}'
   SageMakerModelBucketName:
     Description: Name of the S3 bucket for SageMaker models
     Value: !Ref SageMakerModelBucket

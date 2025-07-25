@@ -325,7 +325,7 @@ Resources:
               Configuration:
                 ProjectName: !Ref CloudFormationDeployProject
                 PrimarySource: SourceOutput
-            - Name: DeploySageMakerECRRepository
+            - Name: DeploySageMakerS3Buckets
               ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -353,20 +353,20 @@ Resources:
               Configuration:
                 ProjectName: !Ref DockerBuildProject
                 PrimarySource: SourceOutput
-            - Name: BuildSageMakerDocker
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: '1'
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: SageMakerDockerBuildOutput
-              Configuration:
-                ProjectName: !Ref SageMakerDockerBuildProject
-                PrimarySource: SourceOutput
-        - Name: DeployLambdaFunctions
+            # - Name: BuildSageMakerDocker
+            #   ActionTypeId:
+            #     Category: Build
+            #     Owner: AWS
+            #     Provider: CodeBuild
+            #     Version: '1'
+            #   InputArtifacts:
+            #     - Name: SourceOutput
+            #   OutputArtifacts:
+            #     - Name: SageMakerDockerBuildOutput
+            #   Configuration:
+            #     ProjectName: !Ref SageMakerDockerBuildProject
+            #     PrimarySource: SourceOutput
+        - Name: DeployECSLambda
           Actions:
             - Name: DeployECSLambda
               ActionTypeId:
